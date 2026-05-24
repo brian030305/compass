@@ -390,8 +390,9 @@ elif st.session_state.current_page == 'AI 매칭':
             if df.empty:
                 st.info("선택하신 업종 및 기술 키워드와 매칭되는 실시간 공고가 없습니다. 조건을 변경해 보세요.")
             else:
-                st.success(f"조건에 맞는 공고를 총 {len(df)}건 찾았습니다!")
-                st.dataframe(df, use_container_width=True)
+                st.session_state.filtered_df = df  # 검색된 결과를 세션에 저장
+            st.success(f"조건에 맞는 공고를 총 {len(df)}건 찾았습니다!")
+            st.dataframe(df, use_container_width=True)
 
 # ------- 생존율 예측 설정 -----------
 elif st.session_state.current_page == '생존율 예측':
@@ -547,7 +548,10 @@ elif st.session_state.current_page == '보고서 생성':
     st.subheader("📄 AI 자동 생성 보고서 보관함")
     
     # 1. 전체 데이터 불러오기 및 사업명 리스트 추출
-    df = get_ai_classified_data()
+    if 'filtered_df' in st.session_state and st.session_state.filtered_df is not None:
+        df = st.session_state.filtered_df
+    else:
+        df = get_ai_classified_data()
     
     if df.empty:
         st.warning("현재 연동된 공고 데이터가 없습니다. 먼저 매칭 탭에서 데이터를 확인해주세요.")
