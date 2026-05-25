@@ -214,7 +214,13 @@ def fetch_bizinfo_api():
     }
     
     try:
-        response = requests.get(url, params=params, timeout=10)
+        # 🚨 [핵심 수정] 봇(Bot) 차단 필터링을 우회하기 위한 가짜 브라우저 헤더 세팅
+        custom_headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        
+        # headers와 verify=False(SSL 인증서 검사 무시) 파라미터 추가
+        response = requests.get(url, params=params, headers=custom_headers, verify=False, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
