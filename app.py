@@ -69,7 +69,7 @@ if not st.session_state["logged_in"]:
             with st.spinner("구글 클라우드 서버에서 유저 정보를 확인 중입니다..."):
                 try:
                     # 🎯 구글 시트에서 데이터 읽어오기
-                    users_df = conn.read()
+                    users_df = conn.read().fillna("")
                     
                     # 아이디가 일치하는 행(Row) 찾기
                     user_row = users_df[users_df['id'].astype(str) == user_id]
@@ -172,7 +172,7 @@ def edit_company_profile():
         # 🎯 [핵심] 수정한 정보를 구글 시트에 실시간으로 덮어쓰기
         with st.spinner("변경 사항을 구글 클라우드 DB에 영구 저장 중입니다..."):
             try:
-                users_df = conn.read()
+                users_df = conn.read().fillna("")
                 # 현재 로그인된 아이디의 줄(Row)을 찾아내어 내용물 교체
                 mask = users_df['id'].astype(str) == st.session_state.user_id
                 if mask.any():
