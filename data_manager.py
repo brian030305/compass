@@ -1,6 +1,8 @@
 import streamlit as st
 import requests
 import pandas as pd
+from streamlit_gsheets import GSheetsConnection
+from datetime import datetime
 
 # ★핵심 수정: 모든 함수가 헤더(Header) 방식으로 키를 전달하도록 변경★
 
@@ -199,67 +201,22 @@ def fetch_mss_tech_cert_api():
 # ==========================================
 @st.cache_data(ttl=1800) 
 def fetch_bizinfo_api():
-    api_key = st.secrets.get("BIZINFO_API_KEY", "")
-    
-    if not api_key:
-        st.warning("기업마당 API 키가 secrets 파일에 설정되지 않았습니다.")
-        return pd.DataFrame()
-        
-    url = "https://www.bizinfo.go.kr/uss/rss/bizinfoApi.do"
-    
-    params = {
-        "crtfcKey": api_key,
-        "dataType": "json",  
-        "searchCnt": "500"   
-    }
-    
     try:
-        # 🚨 [핵심 수정] 봇(Bot) 차단 필터링을 우회하기 위한 가짜 브라우저 헤더 세팅
-        custom_headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
+        # 🚨 [핵심] 온라인 서버는 막히는 API 대신 구글 시트의 'BizInfo' 탭을 읽어옵니다.
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df = conn.read(worksheet="BizInfo")
         
-        # headers와 verify=False(SSL 인증서 검사 무시) 파라미터 추가
-        response = requests.get(url, params=params, headers=custom_headers, verify=False, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            # --- 🎯 [핵심 수정] 어떤 형태의 데이터가 오든 유연하게 꺼내는 로직 ---
-            items = []
-            if isinstance(data, list):
-                items = data
-            elif isinstance(data, dict):
-                # 정상적인 데이터인 경우
-                if 'jsonArray' in data:
-                    items = data['jsonArray']
-                elif 'item' in data:
-                    items = data['item']
-                # 에러 메시지이거나 알 수 없는 구조인 경우
-                else:
-                    st.error(f"🚨 API가 데이터를 거절했습니다. 기업마당 응답 내용: {data}")
-                    st.info("💡 팁: 기업마당 홈페이지에 등록된 IP 주소와 현재 PC의 IP 주소가 일치하는지 확인하세요.")
-                    return pd.DataFrame()
-            
-            if not items:
-                return pd.DataFrame()
-                
-            df = pd.DataFrame(items)
-            
-            # --- 마감일 필터링 로직 ---
-            if 'reqstEndDe' in df.columns:
-                df['마감일_계산용'] = pd.to_datetime(df['reqstEndDe'], errors='coerce')
-                today = pd.Timestamp(datetime.now().date())
-                valid_df = df[(df['마감일_계산용'] >= today) | (df['마감일_계산용'].isna())]
-                valid_df = valid_df.drop(columns=['마감일_계산용']).head(200).reset_index(drop=True)
-                return valid_df
-            else:
-                return df.head(200)
-                
-        else:
-            st.error(f"기업마당 API 서버 통신 에러: HTTP {response.status_code}")
+        if df.empty:
             return pd.DataFrame()
             
+        # 마감일 필터링 (기존 로직 완벽 유지)
+        if 'reqstEndDe' in df.columns:
+            df['마감일_계산용'] = pd.to_datetime(df['reqstEndDe'], errors='coerce')
+            today = pd.Timestamp(datetime.now().date())
+            valid_df = df[(df['마감일_계산용'] >= today) | (df['마감일_계산용'].isna())]
+            return valid_df.drop(columns=['마감일_계산용']).head(200).reset_index(drop=True)
+        return df.head(200)
+            
     except Exception as e:
-        st.error(f"기업마당 데이터 통신 실패: {e}")
+        st.error(f"구글 시트 읽기 실패: {e}")
         return pd.DataFrame()
