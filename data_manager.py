@@ -1,21 +1,41 @@
+import os
+import base64
+import zipfile
 import streamlit as st
 import requests
 import pandas as pd
 from datetime import datetime
-
-# 🚨 [신규 추가] 오라클 DB와 연결하는 전용 엔진
 import oracledb
 from sqlalchemy import create_engine
 
+# 🚨 [수정됨] 오라클 DB 엔진 생성 및 클라우드 지갑 자동 복원 로직 탑재
 @st.cache_resource
 def get_oracle_engine():
+    # 1. 스트림릿 Secrets에서 환경변수 불러오기 (대소문자/형식 오류 방지용 호환 코드)
+    oracle_user = st.secrets.get("ORACLE_USER", "ADMIN")
+    oracle_password = st.secrets.get("ORACLE_PASSWORD", "")
+    oracle_dsn = st.secrets.get("ORACLE_DSN", "")
+    wallet_password = st.secrets.get("WALLET_PASSWORD", "")
+    wallet_base64 = st.secrets.get("WALLET_BASE64", "")
+    
+    wallet_location = "./bot_wallet"
+    
+    # 2. 스트림릿 클라우드 깡통 서버에 오라클 지갑 파일(Wallet) 실시간 복원
+    if not os.path.exists(wallet_location) and wallet_base64:
+        os.makedirs(wallet_location, exist_ok=True)
+        with open("bot_wallet.zip", "wb") as f:
+            f.write(base64.b64decode(wallet_base64))
+        with zipfile.ZipFile("bot_wallet.zip", 'r') as zip_ref:
+            zip_ref.extractall(wallet_location)
+
+    # 3. DB 접속 엔진 생성
     def get_connection():
         return oracledb.connect(
-            user=st.secrets["oracle"]["user"],
-            password=st.secrets["oracle"]["password"],
-            dsn=st.secrets["oracle"]["dsn"],
-            wallet_location=st.secrets["oracle"]["wallet_location"],
-            wallet_password=st.secrets["oracle"]["wallet_password"]
+            user=oracle_user,
+            password=oracle_password,
+            dsn=oracle_dsn,
+            wallet_location=wallet_location,
+            wallet_password=wallet_password
         )
     return create_engine('oracle+oracledb://', creator=get_connection)
 
