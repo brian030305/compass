@@ -3,39 +3,30 @@ import base64
 import zipfile
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 import oracledb
 from sqlalchemy import create_engine
 
-# 🚨 [최종 보완] 스트림릿 Secrets 누락 여부 완벽 검증 및 /tmp 활용
 @st.cache_resource
 def get_oracle_engine():
+    # 🚨 [중요] 모든 변수를 1단계로만 불러오도록 통일했습니다. (대괄호 두 개 쓰지 마세요)
     oracle_user = st.secrets.get("ORACLE_USER")
     oracle_password = st.secrets.get("ORACLE_PASSWORD")
     oracle_dsn = st.secrets.get("ORACLE_DSN")
     wallet_password = st.secrets.get("WALLET_PASSWORD")
     wallet_base64 = st.secrets.get("WALLET_BASE64")
     
-    # 1. 금고(Secrets)가 비어있는지 강제 검사
-    if not wallet_base64:
-        st.error("❌ [치명적 원인 발견] 스트림릿 Secrets에 WALLET_BASE64 값이 없습니다! 지갑 텍스트를 읽어오지 못했습니다.")
-        st.stop()
-        
+    # 지갑 복원
     wallet_location = "/tmp/oracle_wallet"
     os.makedirs(wallet_location, exist_ok=True)
     zip_path = os.path.join(wallet_location, "wallet.zip")
     
-    # 2. 압축 강제 해제
-    with open(zip_path, "wb") as f:
-        f.write(base64.b64decode(wallet_base64))
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(wallet_location)
-        
-    # 3. 주소록 파일 유무 강제 검사
-    tns_file = os.path.join(wallet_location, "tnsnames.ora")
-    if not os.path.exists(tns_file):
-        st.error("❌ 지갑 텍스트(Base64)를 풀었으나 tnsnames.ora 파일이 없습니다. 복사 붙여넣기 과정에서 글자가 누락되었을 수 있습니다.")
-        st.stop()
+    if wallet_base64 and not os.path.exists(os.path.join(wallet_location, "tnsnames.ora")):
+        with open(zip_path, "wb") as f:
+            f.write(base64.b64decode(wallet_base64))
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(wallet_location)
+
+    os.environ["TNS_ADMIN"] = wallet_location
 
     def get_connection():
         return oracledb.connect(
@@ -47,6 +38,8 @@ def get_oracle_engine():
             wallet_password=wallet_password
         )
     return create_engine('oracle+oracledb://', creator=get_connection)
+
+
 def fetch_safety_cert_data():
     url = "https://api.odcloud.kr/api/15040703/v1/uddi:9bbbc4ab-d825-401f-b7c2-ff065808acec"
     headers = {'Authorization': f'Infuser {st.secrets["SAFETY_API_KEY"]}'}
