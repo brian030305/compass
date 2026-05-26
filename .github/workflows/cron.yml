@@ -1,10 +1,9 @@
 name: Bizinfo Oracle Auto Updater
 
 on:
+  workflow_dispatch: # 🚨 이 라인 앞뒤에 절대 # 기호가 있으면 안 됩니다! 날것 그대로 존재해야 버튼이 생깁니다.
   schedule:
-    # 🚨 매일 새벽 3시(한국 시간)에 로봇이 자동으로 깨어납니다. (UTC 기준 18:00)
     - cron: '0 18 * * *'
-  workflow_dispatch: # 💡 깃허브 웹사이트에서 마우스 클릭으로 '즉시 실행'하는 버튼을 만들어줍니다.
 
 jobs:
   update-db:
