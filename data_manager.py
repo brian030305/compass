@@ -8,7 +8,7 @@ from datetime import datetime
 import oracledb
 from sqlalchemy import create_engine
 
-# 🚨 [수정됨] 깡통 서버 지갑 압축 해제 및 절대경로(config_dir) 탑재 완료
+# 🚨 [진짜 원인 수정] 빈 폴더 함정을 피하기 위해 핵심 주소록 파일(tnsnames.ora)이 있는지 검사합니다.
 @st.cache_resource
 def get_oracle_engine():
     oracle_user = st.secrets.get("ORACLE_USER", "ADMIN")
@@ -18,8 +18,10 @@ def get_oracle_engine():
     wallet_base64 = st.secrets.get("WALLET_BASE64", "")
     
     wallet_location = os.path.abspath("./bot_wallet")
+    tns_path = os.path.join(wallet_location, "tnsnames.ora") # 👈 주소록 파일 경로 명시
     
-    if not os.path.exists(wallet_location) and wallet_base64:
+    # 🚨 폴더가 아니라 '주소록 파일'이 없으면 무조건 강제로 다시 압축을 풉니다!
+    if not os.path.exists(tns_path) and wallet_base64:
         os.makedirs(wallet_location, exist_ok=True)
         with open("bot_wallet.zip", "wb") as f:
             f.write(base64.b64decode(wallet_base64))
@@ -31,7 +33,7 @@ def get_oracle_engine():
             user=oracle_user,
             password=oracle_password,
             dsn=oracle_dsn,
-            config_dir=wallet_location,     # 🚨 주소록 위치 강제 고정
+            config_dir=wallet_location,
             wallet_location=wallet_location,
             wallet_password=wallet_password
         )
