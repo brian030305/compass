@@ -1,0 +1,35 @@
+name: Real Bizinfo Bot
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 18 * * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 1️⃣ 깃허브 서버로 최신 코드 다운로드 (캐시 무시)
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: 2️⃣ 파이썬 환경 설정
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: 3️⃣ 필수 라이브러리 설치
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests pandas sqlalchemy oracledb
+
+    - name: 4️⃣ 기업마당 봇 최종 실행
+      env:
+        ORACLE_USER: ${{ secrets.ORACLE_USER }}
+        ORACLE_PASSWORD: ${{ secrets.ORACLE_PASSWORD }}
+        ORACLE_DSN: ${{ secrets.ORACLE_DSN }}
+        WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD }}
+        WALLET_BASE64: ${{ secrets.WALLET_BASE64 }}
+        BIZINFO_API_KEY: ${{ secrets.BIZINFO_API_KEY }}
+      run: python final_bot.py
