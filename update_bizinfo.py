@@ -32,7 +32,7 @@ except Exception as e:
     print(f"❌ 지갑 파일 복원 실패: {e}")
     sys.exit(1)
 
-# 🚨 사용자님이 발급받으신 진짜 기업마당 공식 API 주소입니다!
+# 🚨 문법 에러 유발 문구 완전 수정 완료
 print("3️⃣ 기업마당 공식 API 서버 호출 중...")
 url = "https://www.bizinfo.go.kr/uss/rss/bizinfoApi.do"
 params = {
