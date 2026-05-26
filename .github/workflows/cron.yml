@@ -31,4 +31,5 @@ jobs:
         ORACLE_DSN: ${{ secrets.ORACLE_DSN }}
         WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD }}
         WALLET_BASE64: ${{ secrets.WALLET_BASE64 }}
+        BIZINFO_API_KEY: ${{ secrets.BIZINFO_API_KEY }}
       run: python update_bizinfo.py

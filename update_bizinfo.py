@@ -39,9 +39,13 @@ print("3️⃣ 기업마당 최신 API 데이터 호출 중...")
 url = "https://api.odcloud.kr/api/3034791/v1/uddi:80a74cfd-55d2-4dd3-81c7-d01567d0b3c4"
 params = {'page': '1', 'perPage': '1000', 'returnType': 'JSON'}
 
-# 🚨 [중요] 사용자님의 스트림릿 secrets에 등록되어 있는 실제 중기부/기업마당 API 키를 아래 따옴표 안에 넣어주세요!
-# 예: 'Infuser abcde12345...' 형태 (인코딩/디코딩 키 중 작동하는 것을 넣어주시면 됩니다.)
-headers = {'Authorization': 'Qg1V8R'} 
+bizinfo_key = os.getenv("BIZINFO_API_KEY")
+
+if not bizinfo_key:
+    print("❌ 에러: 깃허브 비밀키에서 BIZINFO_API_KEY를 불러오지 못했습니다.")
+    sys.exit(1)
+
+headers = {'Authorization': f'Infuser {bizinfo_key}'}
 
 try:
     response = requests.get(url, headers=headers, params=params, timeout=30)
