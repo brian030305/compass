@@ -1,14 +1,27 @@
 import streamlit as st
 import requests
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
 from datetime import datetime
 
-# ★핵심 수정: 모든 함수가 헤더(Header) 방식으로 키를 전달하도록 변경★
+# 🚨 [신규 추가] 오라클 DB와 연결하는 전용 엔진
+import oracledb
+from sqlalchemy import create_engine
+
+@st.cache_resource
+def get_oracle_engine():
+    def get_connection():
+        return oracledb.connect(
+            user=st.secrets["oracle"]["user"],
+            password=st.secrets["oracle"]["password"],
+            dsn=st.secrets["oracle"]["dsn"],
+            wallet_location=st.secrets["oracle"]["wallet_location"],
+            wallet_password=st.secrets["oracle"]["wallet_password"]
+        )
+    return create_engine('oracle+oracledb://', creator=get_connection)
+
 
 def fetch_safety_cert_data():
     url = "https://api.odcloud.kr/api/15040703/v1/uddi:9bbbc4ab-d825-401f-b7c2-ff065808acec"
-    # Authorization 헤더에 키를 넣습니다.
     headers = {'Authorization': f'Infuser {st.secrets["SAFETY_API_KEY"]}'}
     params = {'page': '1', 'perPage': '100'} 
     try:
@@ -114,24 +127,24 @@ def get_integrated_data():
     return None
 
 # ==========================================
-# 📊 [유지] KEIT 사업공고 현황 (유일한 로컬 CSV)
+# 📊 [수정됨] KEIT 사업공고 현황 (이제 오라클 DB에서 읽어옵니다)
 # ==========================================
 @st.cache_data(ttl=3600)
 def fetch_local_keit_announcement():
-    """한국산업기술기획평가원_사업공고 현황 데이터 로드"""
+    """한국산업기술기획평가원_사업공고 현황 데이터 로드 (로컬 CSV -> 오라클 연동)"""
     try:
-        return pd.read_csv("한국산업기술기획평가원_사업공고 현황.csv", encoding="cp949", encoding_errors="ignore")
-    except Exception:
-        try:
-            return pd.read_csv("한국산업기술기획평가원_사업공고 현황.csv", encoding="utf-8-sig", encoding_errors="ignore")
-        except Exception as e:
-            st.error(f"KEIT 사업공고 현황 로드 실패: {e}")
-            return pd.DataFrame()
+        engine = get_oracle_engine()
+        # 오라클에 올린 'csv_data_tb' 테이블을 통째로 읽어옵니다.
+        df = pd.read_sql("SELECT * FROM csv_data_tb", engine)
+        return df
+    except Exception as e:
+        st.error(f"KEIT 사업공고 현황 오라클 DB 로드 실패: {e}")
+        return pd.DataFrame()
 
 # ==========================================
-# 🌐 [신규 전환] 통계청 전국사업체조사 API
+# 🌐 통계청 전국사업체조사 API
 # ==========================================
-@st.cache_data(ttl=86400) # 통계 데이터이므로 하루(86400초) 단위로 캐시
+@st.cache_data(ttl=86400) 
 def fetch_national_business_api():
     """전국사업체조사 공공데이터 API 로드"""
     api_key = st.secrets.get("NATIONAL_BUSINESS_SURVEY_API_KEY", "")
@@ -139,10 +152,7 @@ def fetch_national_business_api():
         st.warning("전국사업체조사 API 키가 설정되지 않았습니다.")
         return pd.DataFrame()
         
-    # 🎯 찾아내신 2023년 최신 URL 적용 완료
     url = "https://api.odcloud.kr/api/15087673/v1/uddi:32e6d6f0-6d01-4f62-b76e-b0ae5b840573" 
-    
-    # 🚨 [핵심 수정] params가 아닌 headers에 인증키를 넣고, 파라미터명도 odcloud 규격에 맞춥니다.
     headers = {'Authorization': f'Infuser {api_key}'}
     params = {'page': '1', 'perPage': '1000'}
     
@@ -150,7 +160,6 @@ def fetch_national_business_api():
         response = requests.get(url, headers=headers, params=params, timeout=15)
         if response.status_code == 200:
             data = response.json()
-            # 🚨 [핵심 수정] odcloud API는 'data' 키 안에 곧바로 배열을 줍니다.
             if 'data' in data:
                 return pd.DataFrame(data['data'])
             else:
@@ -164,7 +173,7 @@ def fetch_national_business_api():
         return pd.DataFrame()
 
 # ==========================================
-# 🌐 [신규 전환] 중소벤처기업부 기술개발제품 인증현황 API
+# 🌐 중소벤처기업부 기술개발제품 인증현황 API
 # ==========================================
 @st.cache_data(ttl=86400)
 def fetch_mss_tech_cert_api():
@@ -174,9 +183,7 @@ def fetch_mss_tech_cert_api():
         st.warning("기술개발제품 인증현황 API 키가 설정되지 않았습니다.")
         return pd.DataFrame()
         
-    # 🎯 찾아내신 2023년 최신 URL 적용 완료
     url = "https://api.odcloud.kr/api/3033913/v1/uddi:27bb6889-e56d-4cdc-a222-9f02900c81e7" 
-    
     headers = {'Authorization': f'Infuser {api_key}'}
     params = {'page': '1', 'perPage': '500'}
     
@@ -197,14 +204,14 @@ def fetch_mss_tech_cert_api():
         return pd.DataFrame()
 
 # ==========================================
-# 🌐 기업마당 (Bizinfo) API 로드 함수 (안전 파싱 적용)
+# 🌐 [수정됨] 기업마당 (Bizinfo) 데이터 로드 (이제 오라클 DB에서 읽어옵니다)
 # ==========================================
 @st.cache_data(ttl=1800) 
 def fetch_bizinfo_api():
     try:
-        # 🚨 [핵심] 온라인 서버는 막히는 API 대신 구글 시트의 'BizInfo' 탭을 읽어옵니다.
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(worksheet="BizInfo")
+        engine = get_oracle_engine()
+        # 🚨 구글 시트 대신 오라클 DB의 'bizinfo_tb' 방에서 데이터를 즉시 가져옵니다.
+        df = pd.read_sql("SELECT * FROM bizinfo_tb", engine)
         
         if df.empty:
             return pd.DataFrame()
@@ -218,5 +225,5 @@ def fetch_bizinfo_api():
         return df.head(200)
             
     except Exception as e:
-        st.error(f"구글 시트 읽기 실패: {e}")
+        st.error(f"오라클 DB(기업마당) 읽기 실패: {e}")
         return pd.DataFrame()

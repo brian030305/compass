@@ -4,9 +4,10 @@ import pandas as pd
 import google.generativeai as genai
 import io
 import re
+import hashlib
 from docx import Document
+from data_manager import get_oracle_engine
 from datetime import datetime, timedelta
-from streamlit_gsheets import GSheetsConnection
 from data_manager import (
     fetch_safety_cert_data, fetch_mss_data, fetch_ktl_data,
     fetch_kiat_data, fetch_keit_min_data, fetch_keit_rd_data,
@@ -33,74 +34,139 @@ def change_page(page_name):
     st.session_state.current_page = page_name
     st.query_params["page"] = page_name
 
-# ==========================================
-# 🚨 로그인 시스템 및 차단기 (구글 시트 실시간 연동)
-# ==========================================
-# 🎯 구글 시트 연결 객체 생성
-conn = st.connection("gsheets", type=GSheetsConnection)
+# ------------------ 🔐 회원가입 및 로그인 시스템 시작 ------------------
+# 세션 스테이트(로그인 상태) 초기화
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = ""
 
-if st.query_params.get("auth") == "success":
-    st.session_state["logged_in"] = True
+if 'dashboard_metrics' not in st.session_state:
+    st.session_state.dashboard_metrics = None
+
+# 비밀번호 암호화(해싱) 및 검증 함수
+def make_hashes(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
+
+def check_hashes(password, hashed_text):
+    if make_hashes(password) == hashed_text:
+        return True
+    return False
+
+# 로그인이 안 되어 있을 때 제어 화면 표시
+if not st.session_state.logged_in:
+    st.subheader("🔐 창업나침반 서비스 로그인")
     
-    # 새로고침 시 URL 파라미터를 통해 세션 복구
-    if 'company_name' not in st.session_state:
-        st.session_state.user_id = st.query_params.get("uid", "admin")
-        st.session_state.company_name = st.query_params.get("company", "")
-        st.session_state.industry = st.query_params.get("industry_val", "")
-        st.session_state.tech_field = st.query_params.get("tech", "")
-        st.session_state.location = st.query_params.get("location", "")
-        st.session_state.dashboard_metrics = None
-
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-
-if not st.session_state["logged_in"]:
-    login_container = st.empty()
-    with login_container.container():
-        st.title("🔒 창업나침반 - 로그인")
-        st.info("서비스를 이용하시려면 로그인이 필요합니다.")
-        
-        with st.form(key="login_form"):
-            user_id = st.text_input("아이디")
-            user_pw = st.text_input("비밀번호", type="password")
-            submit_button = st.form_submit_button(label="로그인", type="primary", use_container_width=True)
+    tab1, tab2 = st.tabs(["로그인", "회원가입"])
+    
+    # 🎯 오라클 DB에서 'users_tb'의 데이터를 불러옵니다.
+    engine = get_oracle_engine()
+    users_df = pd.read_sql("SELECT * FROM users_tb", engine).fillna("")
+    
+    # --- [로그인 탭] ---
+    with tab1:
+        with st.form("login_form"):
+            login_id = st.text_input("아이디 (기업명)")
+            login_pw = st.text_input("비밀번호", type='password')
+            submit_btn = st.form_submit_button("로그인", type="primary")
             
-        if submit_button:
-            with st.spinner("구글 클라우드 서버에서 유저 정보를 확인 중입니다..."):
-                try:
-                    # 🎯 구글 시트에서 데이터 읽어오기
-                    users_df = conn.read().fillna("")
+        if submit_btn:
+            if login_id in users_df['id'].astype(str).values:
+                user_idx = users_df.index[users_df['id'].astype(str) == login_id][0]
+                stored_password = str(users_df.at[user_idx, 'pw'])
+                
+                # 1. 이미 암호화가 완료된 비밀번호인지 확인
+                if check_hashes(login_pw, stored_password):
+                    st.success(f"환영합니다, {login_id}님!")
+                    st.session_state.logged_in = True
+                    st.session_state.user_id = login_id
                     
-                    # 아이디가 일치하는 행(Row) 찾기
-                    user_row = users_df[users_df['id'].astype(str) == user_id]
+                    st.session_state.company_name = str(users_df.at[user_idx, 'company'])
+                    st.session_state.location = str(users_df.at[user_idx, 'location'])
+                    st.session_state.industry = str(users_df.at[user_idx, 'industry'])
+                    st.session_state.tech_field = str(users_df.at[user_idx, 'tech'])
                     
-                    # 계정이 존재하고 비밀번호가 일치하는지 검증
-                    if not user_row.empty and str(user_row.iloc[0]['pw']) == user_pw:
-                        st.session_state["logged_in"] = True
-                        st.query_params["auth"] = "success"
-                        st.query_params["uid"] = user_id
-                        
-                        # 🎯 구글 시트에 적혀있던 데이터를 세션에 장착
-                        st.session_state.user_id = user_id
-                        st.session_state.company_name = str(user_row.iloc[0]['company'])
-                        st.session_state.location = str(user_row.iloc[0]['location'])
-                        st.session_state.industry = str(user_row.iloc[0]['industry'])
-                        st.session_state.tech_field = str(user_row.iloc[0]['tech'])
-                        
-                        st.query_params["company"] = st.session_state.company_name
-                        st.query_params["industry_val"] = st.session_state.industry
-                        st.query_params["tech"] = st.session_state.tech_field
-                        st.query_params["location"] = st.session_state.location
-                        
-                        st.session_state.dashboard_metrics = None
-                        login_container.empty() 
-                        st.rerun() 
-                    else:
-                        st.error("아이디 또는 비밀번호가 일치하지 않습니다.")
-                except Exception as e:
-                    st.error("데이터베이스(구글 시트) 접근 중 오류가 발생했습니다. 권한 설정이나 키 값을 확인해주세요.")
+                    st.rerun()
+                    
+                # 2. 예전에 만들어둔 평문 비밀번호인 경우 -> 로그인 허용 및 자동 암호화 후 오라클 반영
+                elif login_pw == stored_password:
+                    hashed_pw = make_hashes(login_pw)
+                    users_df.at[user_idx, 'pw'] = hashed_pw
+                    engine = get_oracle_engine()
+                    users_df.to_sql('users_tb', engine, if_exists='replace', index=False) 
+                    
+                    st.success(f"보안 업데이트 완료! 환영합니다, {login_id}님!")
+                    st.session_state.logged_in = True
+                    st.session_state.user_id = login_id
+                    
+                    st.session_state.company_name = str(users_df.at[user_idx, 'company'])
+                    st.session_state.location = str(users_df.at[user_idx, 'location'])
+                    st.session_state.industry = str(users_df.at[user_idx, 'industry'])
+                    st.session_state.tech_field = str(users_df.at[user_idx, 'tech'])
+                    
+                    st.rerun()
+                else:
+                    st.error("비밀번호가 일치하지 않습니다.")
+            else:
+                st.error("존재하지 않는 아이디입니다.")
+
+    # --- [회원가입 탭] ---
+    with tab2:
+        with st.form("signup_form"):
+            st.markdown("#### 1. 계정 정보")
+            signup_id = st.text_input("아이디 (기업명)", placeholder="예: 창업나침반(주)")
+            signup_pw = st.text_input("비밀번호", type='password')
+            signup_pw_check = st.text_input("비밀번호 확인", type='password')
+            
+            st.markdown("#### 2. 기업 초기 세팅 정보")
+            
+            location_options = ["전국", "서울", "경기", "인천", "부산", "대구", "대전", "광주", "울산", "세종", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주"]
+            signup_location = st.selectbox("기업 소재지(지역)", location_options)
+            
+            industry_options = ["선택해주세요", "IT/소프트웨어", "제조업", "바이오/헬스케어", "에너지/환경", "기타"]
+            signup_industry = st.selectbox("어떤 업종에 속하시나요?", industry_options)
+            
+            signup_tech = st.text_input("필요한 기술 분야 키워드", placeholder="예: 드론, 인공지능")
+            
+            signup_btn = st.form_submit_button("✅ 가입 완료 및 시작하기", type="primary", use_container_width=True)
+            
+        if signup_btn:
+            if signup_id == "" or signup_pw == "":
+                st.warning("아이디(기업명)와 비밀번호는 필수 입력 사항입니다.")
+            elif signup_pw != signup_pw_check:
+                st.warning("비밀번호가 일치하지 않습니다.")
+            elif signup_id in users_df['id'].astype(str).values:
+                st.error("이미 존재하는 아이디(기업명)입니다. 다른 이름을 사용해주세요.")
+            else:
+                hashed_pw = make_hashes(signup_pw)
+                new_user = pd.DataFrame([{
+                    "id": signup_id, 
+                    "pw": hashed_pw, 
+                    "company": signup_id,
+                    "location": signup_location,
+                    "industry": signup_industry,
+                    "tech": signup_tech,
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }])
+                
+                updated_df = pd.concat([users_df, new_user], ignore_index=True)
+                
+                # 🚨 [버그 수정] 구글 시트 대신 오라클 DB에 새 회원 정보 영구 저장
+                engine = get_oracle_engine()
+                updated_df.to_sql('users_tb', engine, if_exists='replace', index=False)
+                
+                st.session_state.logged_in = True
+                st.session_state.user_id = signup_id
+                st.session_state.company_name = signup_id
+                st.session_state.location = signup_location
+                st.session_state.industry = signup_industry
+                st.session_state.tech_field = signup_tech
+                
+                st.success(f"🎉 {signup_id}님, 회원가입이 완료되었습니다! 즉시 대시보드를 시작합니다.")
+                st.rerun()
                 
     st.stop()
+# ------------------ 🔐 회원가입 및 로그인 시스템 끝 ------------------
 
 # --- AI 스마트 분류 함수 ---
 @st.cache_data(ttl=3600) 
@@ -140,7 +206,6 @@ def edit_company_profile():
     current_tech = st.session_state.get('tech_field', '')
     current_location = st.session_state.get('location', '전국')
     
-    # 🎯 [핵심] 입력칸들을 form으로 묶어 엔터키 제출을 활성화합니다.
     with st.form(key="edit_company_form"):
         company_input = st.text_input("기업명", value=current_company)
         
@@ -155,7 +220,6 @@ def edit_company_profile():
         tech_field_input = st.text_input("필요한 기술 분야 키워드", value=current_tech, placeholder="예: 드론, 인공지능")
         
         st.markdown("---")
-        # st.button 대신 st.form_submit_button을 사용해야 엔터키와 연동됩니다.
         submit_btn = st.form_submit_button("💾 변경사항 저장 및 실시간 반영", type="primary", use_container_width=True)
         
     if submit_btn:
@@ -169,11 +233,12 @@ def edit_company_profile():
         st.query_params["tech"] = tech_field_input
         st.query_params["location"] = location_input
         
-        # 🎯 [핵심] 수정한 정보를 구글 시트에 실시간으로 덮어쓰기
-        with st.spinner("변경 사항을 구글 클라우드 DB에 영구 저장 중입니다..."):
+        # 🚨 [버그 수정] 수정한 정보를 오라클 클라우드 DB에 실시간으로 반영 및 저장
+        with st.spinner("변경 사항을 오라클 클라우드 DB에 영구 저장 중입니다..."):
             try:
-                users_df = conn.read().fillna("")
-                # 현재 로그인된 아이디의 줄(Row)을 찾아내어 내용물 교체
+                engine = get_oracle_engine()
+                users_df = pd.read_sql("SELECT * FROM users_tb", engine).fillna("")
+                
                 mask = users_df['id'].astype(str) == st.session_state.user_id
                 if mask.any():
                     users_df.loc[mask, 'company'] = company_input
@@ -181,10 +246,9 @@ def edit_company_profile():
                     users_df.loc[mask, 'industry'] = industry_input
                     users_df.loc[mask, 'tech'] = tech_field_input
                     
-                    # 덮어쓴 데이터를 다시 구글 시트에 전송하여 업데이트
-                    conn.update(data=users_df)
+                    users_df.to_sql('users_tb', engine, if_exists='replace', index=False)
             except Exception as e:
-                st.error(f"구글 시트 업데이트 중 오류 발생: {e}")
+                st.error(f"오라클 클라우드 DB 업데이트 중 오류 발생: {e}")
         
         st.session_state.dashboard_metrics = None 
         st.session_state.survival_report = None
@@ -199,7 +263,6 @@ with st.sidebar:
     st.markdown(f"**환영합니다, {st.session_state.get('company_name', '고객')}님!**")
     if st.button("🚪 로그아웃", use_container_width=True):
         st.session_state["logged_in"] = False
-        # 인증 정보 삭제
         st.query_params.clear() 
         st.rerun()
     if st.button("⚙️ 기업 정보 수정", use_container_width=True, type="secondary"):
@@ -274,7 +337,6 @@ if st.session_state.current_page == '대시보드':
         is_info_set = (ind_str != "선택해주세요" and ind_str != "")
         
         if is_info_set:
-            # 🎯 [핵심 1] AI 매칭 탭과 동일한 실시간 API 호출 및 완벽 필터링 적용
             df = fetch_bizinfo_api()
             
             if not df.empty and 'pblancNm' in df.columns:
@@ -315,10 +377,7 @@ if st.session_state.current_page == '대시보드':
                 if ind_str in industry_keywords and industry_keywords[ind_str]:
                     pattern = '|'.join(industry_keywords[ind_str])
                     df = df[df.apply(lambda row: row.astype(str).str.contains(pattern, case=False).any(), axis=1)]
-                #if tech_str:
-                    #df = df[df.apply(lambda row: row.astype(str).str.contains(tech_str, case=False).any(), axis=1)]
             
-            # 🎯 [핵심 2] 진짜 리얼 데이터 기반 KPI 계산 로직
             match_count = len(df) if not df.empty else 0
             
             urgent_count = 0
@@ -331,7 +390,6 @@ if st.session_state.current_page == '대시보드':
                 current_year = today.year
                 
                 for _, row in df.iterrows():
-                    # 1) 실제 날짜 기반 마감 임박 스캔
                     end_date_str = str(row.get('마감일', ''))
                     parsed_end = pd.to_datetime(end_date_str, errors='coerce')
                     
@@ -343,7 +401,6 @@ if st.session_state.current_page == '대시보드':
                         if end_date_obj.month == current_month and end_date_obj.year == current_year:
                             this_month_count += 1
                             
-                    # 2) 텍스트 기반 실제 지원 금액 추출 (억, 천만 단위 정규식 스캔)
                     title_text = str(row.get('사업명', ''))
                     ok_match = re.search(r'(\d+(?:\.\d+)?)억', title_text)
                     if ok_match: total_fund_calc += float(ok_match.group(1))
@@ -351,7 +408,6 @@ if st.session_state.current_page == '대시보드':
                     cheon_match = re.search(r'(\d+(?:\.\d+)?)천만', title_text)
                     if cheon_match: total_fund_calc += float(cheon_match.group(1)) * 0.1
 
-            # --- [기능 1] 마감 임박 공지 (데일리 리포트 배너) ---
             if urgent_count > 0:
                 st.error(f"🚨 **주목!** 귀사에 적합한 공고 중 마감이 **7일 이내로 임박한 공고가 {urgent_count}건** 있습니다. 캘린더 탭에서 서둘러 확인해 보세요!")
             elif match_count > 0:
@@ -361,10 +417,8 @@ if st.session_state.current_page == '대시보드':
 
             st.divider()
             
-            # --- [기능 2] 대시보드 핵심 지표 요약표 (리얼 데이터) ---
             kpi1, kpi2, kpi3, kpi4 = st.columns(4)
             
-            # 생존율은 AI 계산 결과가 있으면 평균값, 없으면 '분석 대기' 처리
             if st.session_state.get('dashboard_metrics'):
                 real_survival_rate = sum(st.session_state.dashboard_metrics) / 4
                 survival_display = f"{real_survival_rate:.1f}%"
@@ -384,7 +438,6 @@ if st.session_state.current_page == '대시보드':
                 
             st.divider()
             
-            # --- [기능 3] 생존율 리스크 시각화 바 ---
             if 'last_ind_str' not in st.session_state:
                 st.session_state.last_ind_str = ind_str
             
@@ -400,7 +453,6 @@ if st.session_state.current_page == '대시보드':
                     with st.spinner("실시간 공고 텍스트를 분석하여 역량 점수를 도출 중입니다... (약 5~10초 소요)"):
                         data_summary = df.head(10)['사업명'].to_string() if not df.empty else "데이터 없음"
                         
-                        # 🚨 [수정 적용 완료] 대화 내역 보호를 위해 백그라운드 전용 모델 사용
                         background_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
                         analysis_prompt = f"""
                         업종: {ind_str}, 기술: {tech_str}
@@ -439,7 +491,6 @@ if st.session_state.current_page == '대시보드':
             st.info("💡 좌측 사이드바에서 기업 정보를 설정하시면 맞춤형 지원사업 알림과 생존율 진단을 받아보실 수 있습니다.")
 
             
-    # --- [기능 4] 우측 AI 챗봇 토글 영역 ---
     if st.session_state.show_chatbot:
         with ai_col:
             st.markdown("### 🟢 AI 어시스턴트")
@@ -485,7 +536,6 @@ elif st.session_state.current_page == 'AI 매칭':
     st.subheader("✨ AI 맞춤형 지원사업 매칭")
     st.caption(f"현재 매칭 조건 ➔ 지역: **{loc_str}** | 업종: **{ind_str}** | 기술 키워드: **{tech_str if tech_str else '미설정'}**")
     
-    # 1. 🚀 리스트 불러오기 및 AI 추천 엔진 가동
     if st.button("🚀 실시간 공고 리스트 및 AI 추천 분석 불러오기", type="primary"):
         with st.spinner("서버에서 공고를 수집하고, AI가 귀사에 가장 적합한 사업을 정밀 분석 중입니다... (약 5~10초 소요)"):
             
@@ -523,7 +573,6 @@ elif st.session_state.current_page == 'AI 매칭':
                         
                     df[['접수시작일', '마감일']] = df.apply(lambda x: pd.Series(rescue_dates(x)), axis=1)
 
-                # 지역 필터링
                 if loc_str != "전국":
                     if '지역' not in df.columns: df['지역'] = ''
                     if '소관기관' not in df.columns: df['소관기관'] = ''
@@ -536,7 +585,6 @@ elif st.session_state.current_page == 'AI 매칭':
                     mask = ~df['검색용_텍스트'].str.contains('|'.join(other_regions), case=False, na=False) | df['검색용_텍스트'].str.contains(loc_str, case=False, na=False)
                     df = df[mask].drop(columns=['검색용_텍스트'])
                 
-                # 업종/기술 필터링
                 industry_keywords = {
                     "IT/소프트웨어": ["IT", "소프트웨어", "SW", "정보통신", "플랫폼", "앱", "데이터", "인공지능", "AI"],
                     "제조업": ["제조", "생산", "설비", "부품", "소재", "하드웨어", "공장", "가공"],
@@ -550,21 +598,16 @@ elif st.session_state.current_page == 'AI 매칭':
                         pattern = '|'.join(keywords)
                         df = df[df.apply(lambda row: row.astype(str).str.contains(pattern, case=False).any(), axis=1)]
                 
-                #if tech_str:
-                    #df = df[df.apply(lambda row: row.astype(str).str.contains(tech_str, case=False).any(), axis=1)]
-                
                 if df.empty:
                     st.info(f"선택하신 지역({loc_str}), 업종 및 기술 키워드와 매칭되는 실시간 공고가 없습니다.")
                     if 'matching_list_df' in st.session_state:
                         del st.session_state.matching_list_df
                 else:
                     df['관심 등록'] = False
-                    df['구분'] = "🔵 일반 매칭" # 기본 상태 설정
+                    df['구분'] = "🔵 일반 매칭"
                     
-                    # 🎯 [핵심] 실제 Gemini AI를 호출하여 최대 5개의 찰떡 공고를 픽(Pick)합니다.
                     try:
                         project_titles = df['사업명'].tolist()
-                        # 토큰 절약 및 속도 향상을 위해 상위 50개 리스트만 AI에게 전달
                         titles_text = "\n".join([f"- {t}" for t in project_titles[:50]]) 
                         
                         ai_prompt = f"""
@@ -574,7 +617,6 @@ elif st.session_state.current_page == 'AI 매칭':
                         [목록]
                         {titles_text}
                         """
-                        # 🚨 [핵심 수정] 챗봇 세션 대신, 백그라운드 전용 일회성 모델을 즉석 생성하여 질문합니다.
                         background_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
                         ai_response = background_model.generate_content(ai_prompt)
                         
@@ -585,24 +627,20 @@ elif st.session_state.current_page == 'AI 매칭':
                             df.loc[mask, '구분'] = "⭐ AI 강력 추천"
                             
                     except Exception as e:
-                        pass # AI 분석이 뻗더라도 일반 리스트는 정상 출력되도록 패스 처리
+                        pass
                         
-                    # 🎯 파이썬 카테고리 기능을 이용해 '⭐ AI 강력 추천'이 무조건 1순위(최상단)가 되도록 강제 지정
                     df['구분'] = pd.Categorical(df['구분'], categories=["⭐ AI 강력 추천", "🔵 일반 매칭"], ordered=True)
                     df = df.sort_values(by='구분').reset_index(drop=True)
                     
                     st.session_state.matching_list_df = df.copy()
                     st.success(f"매칭된 공고 {len(df)}건 중, AI가 기업 정보 기반으로 가장 적합한 공고를 선별했습니다!")
 
-    # 2. 🎯 화면 출력 구역 및 사용자 자율 검색창
     if 'matching_list_df' in st.session_state and not st.session_state.matching_list_df.empty:
         df_to_edit = st.session_state.matching_list_df.copy()
         
-        # 🔍 [핵심 신규 기능] 공고 리스트 내에서 사용자 마음대로 검색 가능 (일부 단어만 쳐도 됨)
         search_keyword = st.text_input("🔍 공고 리스트 내 검색 (사업명 일부만 입력해도 실시간 필터링됩니다):", placeholder="예: 바우처, 청년, R&D, 지원 등")
         
         if search_keyword:
-            # 검색어가 있으면 사업명 컬럼에서 해당 단어가 포함된 줄만 남김
             mask = df_to_edit['사업명'].str.contains(search_keyword, case=False, na=False)
             df_to_edit = df_to_edit[mask]
             
@@ -630,7 +668,6 @@ elif st.session_state.current_page == 'AI 매칭':
                 submit_calendar = st.form_submit_button("📅 선택한 공고를 지원 캘린더에 저장하기", type="primary", use_container_width=True)
             
             if submit_calendar:
-                # 검색 결과 창에서 조작한 결과를 원본 메모리에 업데이트 (인덱스 추적)
                 st.session_state.matching_list_df.update(edited_df)
                 selected_rows = st.session_state.matching_list_df[st.session_state.matching_list_df['관심 등록'] == True]
                 
@@ -693,12 +730,10 @@ elif st.session_state.current_page == '생존율 예측':
         else:
             with st.spinner("과거 통계 데이터와 현재 실시간 데이터를 융합 분석 중입니다... (약 10~15초 소요)"):
                 
-                # 1. 과거 통계 API 융합
                 df_biz = fetch_national_business_api()     
                 df_keit = fetch_local_keit_announcement()  
                 df_cert = fetch_mss_tech_cert_api()        
                 
-                # 🎯 [추가] 2. 현재 실시간 기업마당 데이터 불러오기
                 df_current = fetch_bizinfo_api()
                 
                 def get_summary(df, keyword, max_rows=3):
@@ -710,15 +745,12 @@ elif st.session_state.current_page == '생존율 예측':
                         return "관련 키워드 매칭 데이터 없음"
                     return filtered.head(max_rows).to_string()
 
-                # 과거 데이터 요약
                 biz_summary = get_summary(df_biz, ind_str)
                 keit_summary = get_summary(df_keit, tech_str if tech_str else ind_str)
                 cert_summary = get_summary(df_cert, tech_str if tech_str else ind_str)
                 
-                # 🎯 [추가] 현재 데이터 요약 (유저 맞춤형 공고 3개 추출)
                 current_biz_summary = get_summary(df_current, tech_str if tech_str else ind_str)
                 
-                # 3. AI 프롬프트에 과거와 현재 데이터 동시 주입 및 역할 부여
                 prompt = f"""
                 현재 대상 기업은 '{loc_str}' 소재의 '{ind_str}' 업종이며, '{tech_str}' 기술을 다루고 있습니다.
                 아래에 제공된 [과거 공공데이터]와 [현재 실시간 지원사업 데이터]를 융합하여 '생존율 정밀 진단 리포트'를 작성해 줘.
@@ -758,7 +790,6 @@ elif st.session_state.current_page == '지원 캘린더':
     if 'calendar_events' not in st.session_state:
         st.session_state.calendar_events = []
         
-    # --- 📝 1. 내가 원하는 일정 직접 기입 (수동 폼) 구역 ---
     with st.expander("📝 내가 원하는 수동 일정 직접 기입하기", expanded=False):
         with st.form("custom_schedule_form", clear_on_submit=True):
             custom_title = st.text_input("일정 및 사업명 입력", placeholder="예: 창업선도대학 대면평가 준비 또는 서류 제출 마감일")
@@ -776,7 +807,6 @@ elif st.session_state.current_page == '지원 캘린더':
                 elif custom_start > custom_end:
                     st.error("시작 일자가 종료 일자보다 미래일 수 없습니다.")
                 else:
-                    # 마감일 당일까지 캘린더 칸이 꽉 차서 채워지도록 하루 더해줌
                     calc_end_str = (custom_end + timedelta(days=1)).strftime("%Y-%m-%d")
                     st.session_state.calendar_events.append({
                         "title": custom_title[:25] + "..." if len(custom_title) > 25 else custom_title,
@@ -790,7 +820,6 @@ elif st.session_state.current_page == '지원 캘린더':
 
     st.markdown("---")
     
-    # --- 📅 2. 선택/기입된 데이터 기반 클린 달력 렌더링 구역 ---
     if not st.session_state.calendar_events:
         st.info("💡 현재 캘린더에 등록된 마감 일정이 없습니다. 상단 폼을 통해 개인 일정을 기입하거나, 'AI 매칭' 탭에서 추천 공고를 선택해 등록해 보세요!")
     else:
@@ -806,7 +835,6 @@ elif st.session_state.current_page == '지원 캘린더':
             
         target_date_str = f"{target_year}-{target_month:02d}-01"
         
-        # 가공 데이터 매핑 (수동 등록 일정은 가시성을 위해 주황색, 공공 API 공고는 진청색 분리 적용)
         render_events = []
         for ev in st.session_state.calendar_events:
             is_official_api = bool(ev.get('url') and not ev.get('url').startswith('http') == False)
@@ -826,7 +854,6 @@ elif st.session_state.current_page == '지원 캘린더':
             "displayEventTime": False
         })
         
-        # --- ⚙️ 3. 등록된 내부 마감 일정 리스트 조회 및 개별 삭제 관리 구역 ---
         st.markdown("---")
         st.subheader("🛠️ 현재 등록된 일정 관리 명단")
         
@@ -858,7 +885,6 @@ elif st.session_state.current_page == '지원 캘린더':
             hide_index=True
         )
         
-        # 지저분해진 달력을 사용자가 능동적으로 제어할 수 있는 삭제 드롭다운 배포
         with st.expander("❌ 원치 않는 마감 일정 선택 삭제하기", expanded=False):
             select_options = [f"[{row['구분']}] {row['일정/사업명']}" for _, row in m_df.iterrows()]
             delete_choice = st.selectbox("삭제를 희망하는 일정을 고르세요:", options=select_options)
@@ -867,7 +893,6 @@ elif st.session_state.current_page == '지원 캘린더':
                 matched_idx = m_df[m_df.apply(lambda r: f"[{r['구분']}] {r['일정/사업명']}" == delete_choice, axis=1)]["ID"].values[0]
                 target_title = st.session_state.calendar_events[matched_idx]['full_title']
                 
-                # 세션 데이터에서 물리 제거
                 st.session_state.calendar_events.pop(matched_idx)
                 st.success(f"'{target_title}' 일정을 나침반 캘린더 데이터에서 완전히 안전하게 삭제했습니다.")
                 st.rerun()
@@ -877,13 +902,10 @@ elif st.session_state.current_page == '보고서 생성':
     st.header("📄 AI 자동 생성 보고서 보관함")
     st.caption("AI 매칭 메뉴에서 직접 선택하여 캘린더에 등록한 관심 공고들의 사업계획서 초안을 즉시 생성할 수 있습니다.")
     
-    # 1. 🎯 [핵심] 캘린더에 저장된 관심 공고 리스트에서 사업명(full_title)만 쏙 뺴옵니다.
     saved_projects = []
     if 'calendar_events' in st.session_state and st.session_state.calendar_events:
-        # 중복 방지 및 유효한 이름만 추출하여 리스트화
         saved_projects = [e['full_title'] for e in st.session_state.calendar_events if e.get('full_title')]
         
-    # 2. 선택 옵션 구성 (선택된 공고가 있다면 최상단에 배치하고 알림을 띄웁니다)
     if saved_projects:
         options = saved_projects + ["직접 입력할게요 (선택)"]
         st.success(f"💡 현재 지원 캘린더와 연동되어 내가 찜한 공고 **{len(saved_projects)}건**을 바로 선택할 수 있습니다.")
@@ -891,7 +913,6 @@ elif st.session_state.current_page == '보고서 생성':
         options = ["직접 입력할게요 (선택)"]
         st.info("💡 'AI 매칭' 탭에서 관심 공고를 선택해 캘린더에 담으면, 이곳에서 해당 공고를 번거로운 타이핑 없이 바로 선택하여 보고서를 작성할 수 있습니다.")
         
-    # 3. 구성된 옵션으로 선택 박스 렌더링
     selected_business = st.selectbox(
         "작성할 지원사업명을 검색하거나 선택하세요:",
         options=options
@@ -906,17 +927,15 @@ elif st.session_state.current_page == '보고서 생성':
             if not target_business: 
                 st.warning("사업명을 입력하거나 선택해주세요.")
             else:
-                # 스피너 문구도 분석 내용에 맞게 살짝 변경해 줍니다.
                 with st.spinner(f"'{target_business}' 지원 혜택 분석 및 실전용 사업계획서 작성 중..."):
                     
-                    # 🎯 [핵심 수정] 실전용 사업계획서와 지원 이점을 동시에 도출하는 강력한 프롬프트
                     prompt = f"""
                     지원사업명: '{target_business}'
                     우리 기업 업종: {ind_str}
                     핵심 기술: {tech_str}
                     
                     당신은 수많은 스타트업을 합격시킨 정부지원사업 전문 최고 컨설턴트입니다.
-                    단순한 범용 사업계획서가 아니라, 해당 사업에 '실제 지원'하기 위한 맞춤형 사업계획서 초안과, 이 사업에 선정되었을 때 우리 기업이 얻을 수 있는 '실질적인 이점'을 심층 분석해 줘.
+                    단순한 범용 사업계획서가 아니라, 해당 사업에 '실제 지원'하기 위한 맞춤형 사업계획서 초안และ, 이 사업에 선정되었을 때 우리 기업이 얻을 수 있는 '실질적인 이점'을 심층 분석해 줘.
                     
                     반드시 아래 목차에 맞추어 심사위원을 설득할 수 있는 전문적이고 구체적인 비즈니스 문구로 작성할 것.
                     
