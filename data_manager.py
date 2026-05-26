@@ -4,44 +4,37 @@ import zipfile
 import streamlit as st
 import pandas as pd
 import oracledb
-from sqlalchemy import create_engine
 
 @st.cache_resource
-def get_oracle_engine():
-    # 🚨 [중요] 모든 변수를 1단계로만 불러오도록 통일했습니다. (대괄호 두 개 쓰지 마세요)
+def get_oracle_connection():
+    # 금고(Secrets) 확인
     oracle_user = st.secrets.get("ORACLE_USER")
     oracle_password = st.secrets.get("ORACLE_PASSWORD")
     oracle_dsn = st.secrets.get("ORACLE_DSN")
     wallet_password = st.secrets.get("WALLET_PASSWORD")
     wallet_base64 = st.secrets.get("WALLET_BASE64")
     
-    # 지갑 복원
+    # 지갑 설정
     wallet_location = "/tmp/oracle_wallet"
     os.makedirs(wallet_location, exist_ok=True)
-    zip_path = os.path.join(wallet_location, "wallet.zip")
+    tns_file = os.path.join(wallet_location, "tnsnames.ora")
     
-    if wallet_base64 and not os.path.exists(os.path.join(wallet_location, "tnsnames.ora")):
+    if wallet_base64 and not os.path.exists(tns_file):
+        zip_path = os.path.join(wallet_location, "wallet.zip")
         with open(zip_path, "wb") as f:
             f.write(base64.b64decode(wallet_base64))
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(wallet_location)
-
-    os.environ["TNS_ADMIN"] = wallet_location
-
-    def get_connection():
-        # 🚨 [중요] 특수문자(!)가 포함된 비밀번호를 안전하게 전달하기 위해 
-        # 비밀번호를 직접 문자열로 명시하고, 인코딩을 강제합니다.
-        safe_password = str(oracle_password) 
-        
-        return oracledb.connect(
-            user=oracle_user,
-            password=safe_password,
-            dsn=oracle_dsn,
-            config_dir=wallet_location,
-            wallet_location=wallet_location,
-            wallet_password=str(wallet_password)
-        )
-    return create_engine('oracle+oracledb://', creator=get_connection)
+            
+    # 직통 연결 (SQLAlchemy 엔진 생성 없음)
+    return oracledb.connect(
+        user=oracle_user,
+        password=oracle_password,
+        dsn=oracle_dsn,
+        config_dir=wallet_location,
+        wallet_location=wallet_location,
+        wallet_password=wallet_password
+    )
 
 
 def fetch_safety_cert_data():
