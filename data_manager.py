@@ -1,39 +1,33 @@
+import streamlit as st
+import oracledb
 import os
 import base64
 import zipfile
-import streamlit as st
-import pandas as pd
-import oracledb
 
 @st.cache_resource
 def get_oracle_connection():
-    # 금고(Secrets) 확인
-    oracle_user = st.secrets.get("ORACLE_USER")
-    oracle_password = st.secrets.get("ORACLE_PASSWORD")
-    oracle_dsn = st.secrets.get("ORACLE_DSN")
-    wallet_password = st.secrets.get("WALLET_PASSWORD")
-    wallet_base64 = st.secrets.get("WALLET_BASE64")
+    # secrets.toml에서 정보를 가져옵니다.
+    user = st.secrets["ORACLE_USER"]
+    password = st.secrets["ORACLE_PASSWORD"]
+    dsn = st.secrets["ORACLE_DSN"]
+    wallet_pass = st.secrets["WALLET_PASSWORD"]
+    wallet_b64 = st.secrets["WALLET_BASE64"]
     
-    # 지갑 설정
-    wallet_location = "/tmp/oracle_wallet"
-    os.makedirs(wallet_location, exist_ok=True)
-    tns_file = os.path.join(wallet_location, "tnsnames.ora")
-    
-    if wallet_base64 and not os.path.exists(tns_file):
-        zip_path = os.path.join(wallet_location, "wallet.zip")
-        with open(zip_path, "wb") as f:
-            f.write(base64.b64decode(wallet_base64))
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(wallet_location)
+    wallet_dir = "/tmp/wallet"
+    if not os.path.exists(wallet_dir):
+        os.makedirs(wallet_dir)
+        with open(f"{wallet_dir}/wallet.zip", "wb") as f:
+            f.write(base64.b64decode(wallet_b64))
+        with zipfile.ZipFile(f"{wallet_dir}/wallet.zip", 'r') as zip_ref:
+            zip_ref.extractall(wallet_dir)
             
-    # 직통 연결 (SQLAlchemy 엔진 생성 없음)
     return oracledb.connect(
-        user=oracle_user,
-        password=oracle_password,
-        dsn=oracle_dsn,
-        config_dir=wallet_location,
-        wallet_location=wallet_location,
-        wallet_password=wallet_password
+        user=user,
+        password=password,
+        dsn=dsn,
+        config_dir=wallet_dir,
+        wallet_location=wallet_dir,
+        wallet_password=wallet_pass
     )
 
 
