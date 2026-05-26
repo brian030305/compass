@@ -40,24 +40,27 @@ url = "https://api.odcloud.kr/api/3034791/v1/uddi:80a74cfd-55d2-4dd3-81c7-d01567
 params = {'page': '1', 'perPage': '1000', 'returnType': 'JSON'}
 
 bizinfo_key = os.getenv("BIZINFO_API_KEY")
-
 if not bizinfo_key:
     print("❌ 에러: 깃허브 비밀키에서 BIZINFO_API_KEY를 불러오지 못했습니다.")
     sys.exit(1)
 
-headers = {'Authorization': f'Infuser {bizinfo_key}'}
+# 💡 [핵심 교체] 공공데이터포털 특유의 인증키 파싱 에러를 방지하기 위해 
+# headers 대신 params에 직접 인증키를 심어서 보내는 가장 확실한 방식으로 전환합니다.
+params['serviceKey'] = bizinfo_key
 
 try:
-    response = requests.get(url, headers=headers, params=params, timeout=30)
+    # headers 옵션을 제외하고 params로만 요청을 보냅니다.
+    response = requests.get(url, params=params, timeout=30)
     if response.status_code == 200:
         api_data = response.json().get('data', [])
         if not api_data:
-            print("⚠️ API 응답에 'data' 내용물이 비어 있습니다. API 키를 다시 점검하세요.")
+            print("⚠️ API 응답에 'data' 내용물이 비어 있습니다. API 키(인코딩/디코딩)를 교체해야 할 수 있습니다.")
             sys.exit(1)
         biz_df = pd.DataFrame(api_data).fillna("")
         print(f"✔️ 최신 기업마당 공고 {len(biz_df)}건 수집 완료!")
     else:
         print(f"❌ API 호출 실패 (HTTP 상태 코드: {response.status_code})")
+        print(f"💡 서버 응답 내용: {response.text}") # 👈 에러 원인을 더 자세히 보기 위해 로그 추가
         sys.exit(1)
 except Exception as e:
     print(f"❌ API 통신 에러 발생: {e}")
