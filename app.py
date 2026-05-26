@@ -7,6 +7,7 @@ import re
 import hashlib
 from docx import Document
 from data_manager import get_oracle_engine
+from data_manager import get_oracle_connection
 from datetime import datetime, timedelta
 from data_manager import (
     fetch_safety_cert_data, fetch_mss_data, fetch_ktl_data,
@@ -62,8 +63,8 @@ if not st.session_state.logged_in:
     # 🎯 오라클 DB에서 'users_tb'의 데이터를 불러옵니다.
     engine = get_oracle_engine()
     conn = get_oracle_connection()
-    users_df = pd.read_sql("SELECT * FROM users_tb", conn).fillna("")
-    conn.close() # 작업 후 닫기
+    users_df = pd.read_sql("SELECT * FROM users_tb", conn)
+    conn.close()
     
     # --- [로그인 탭] ---
     with tab1:
