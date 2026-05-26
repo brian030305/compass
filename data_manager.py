@@ -2,13 +2,12 @@ import os
 import base64
 import zipfile
 import streamlit as st
-import requests
 import pandas as pd
 from datetime import datetime
 import oracledb
 from sqlalchemy import create_engine
 
-# 🚨 [진짜 원인 수정] 빈 폴더 함정을 피하기 위해 핵심 주소록 파일(tnsnames.ora)이 있는지 검사합니다.
+# 🚨 [권한 문제 해결] 스트림릿에서 무조건 쓰기가 가능한 /tmp 폴더로 경로 변경
 @st.cache_resource
 def get_oracle_engine():
     oracle_user = st.secrets.get("ORACLE_USER", "ADMIN")
@@ -17,16 +16,29 @@ def get_oracle_engine():
     wallet_password = st.secrets.get("WALLET_PASSWORD", "")
     wallet_base64 = st.secrets.get("WALLET_BASE64", "")
     
-    wallet_location = os.path.abspath("./bot_wallet")
-    tns_path = os.path.join(wallet_location, "tnsnames.ora") # 👈 주소록 파일 경로 명시
+    # 서버의 절대 권한 구역인 /tmp 아래에 지갑 폴더 생성
+    wallet_location = "/tmp/oracle_wallet"
     
-    # 🚨 폴더가 아니라 '주소록 파일'이 없으면 무조건 강제로 다시 압축을 풉니다!
-    if not os.path.exists(tns_path) and wallet_base64:
+    if wallet_base64:
         os.makedirs(wallet_location, exist_ok=True)
-        with open("bot_wallet.zip", "wb") as f:
+        zip_path = os.path.join(wallet_location, "wallet.zip")
+        
+        # 1. Base64 텍스트를 진짜 zip 파일로 만들기
+        with open(zip_path, "wb") as f:
             f.write(base64.b64decode(wallet_base64))
-        with zipfile.ZipFile("bot_wallet.zip", 'r') as zip_ref:
+            
+        # 2. 압축 풀기
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(wallet_location)
+            
+        # 🚨 [안전장치] 만약 압축이 안 풀렸거나 파일이 없으면 화면에 붉은색으로 직접 경고를 띄움
+        extracted_files = os.listdir(wallet_location)
+        if "tnsnames.ora" not in extracted_files:
+            st.error(f"❌ 지갑 압축은 풀렸으나 주소록 파일이 없습니다! 현재 폴더 내부: {extracted_files}")
+            st.stop() # 서버가 혼자 뻗기 전에 코드 실행을 멈추고 화면에 원인을 보여줌
+
+    # 오라클이 주소록을 절대 잃어버리지 않게 시스템 환경변수 자체를 조작
+    os.environ["TNS_ADMIN"] = wallet_location
 
     def get_connection():
         return oracledb.connect(
