@@ -315,8 +315,8 @@ if st.session_state.current_page == '대시보드':
                 if ind_str in industry_keywords and industry_keywords[ind_str]:
                     pattern = '|'.join(industry_keywords[ind_str])
                     df = df[df.apply(lambda row: row.astype(str).str.contains(pattern, case=False).any(), axis=1)]
-                if tech_str:
-                    df = df[df.apply(lambda row: row.astype(str).str.contains(tech_str, case=False).any(), axis=1)]
+                #if tech_str:
+                    #df = df[df.apply(lambda row: row.astype(str).str.contains(tech_str, case=False).any(), axis=1)]
             
             # 🎯 [핵심 2] 진짜 리얼 데이터 기반 KPI 계산 로직
             match_count = len(df) if not df.empty else 0
@@ -550,8 +550,8 @@ elif st.session_state.current_page == 'AI 매칭':
                         pattern = '|'.join(keywords)
                         df = df[df.apply(lambda row: row.astype(str).str.contains(pattern, case=False).any(), axis=1)]
                 
-                if tech_str:
-                    df = df[df.apply(lambda row: row.astype(str).str.contains(tech_str, case=False).any(), axis=1)]
+                #if tech_str:
+                    #df = df[df.apply(lambda row: row.astype(str).str.contains(tech_str, case=False).any(), axis=1)]
                 
                 if df.empty:
                     st.info(f"선택하신 지역({loc_str}), 업종 및 기술 키워드와 매칭되는 실시간 공고가 없습니다.")
