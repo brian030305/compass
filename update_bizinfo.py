@@ -9,7 +9,6 @@ import oracledb
 
 print("🚀 [시스템 시작] 기업마당 마스터 자동화 봇 가동...")
 
-# 1. 환경변수 검증
 oracle_user = os.getenv("ORACLE_USER")
 oracle_password = os.getenv("ORACLE_PASSWORD")
 oracle_dsn = os.getenv("ORACLE_DSN")
@@ -21,7 +20,6 @@ if not all([oracle_user, oracle_password, oracle_dsn, wallet_password, wallet_ba
     print("❌ 에러: 깃허브 Secrets 설정 중 누락된 항목이 존재합니다. 6개 키를 모두 확인하세요.")
     sys.exit(1)
 
-# 2. 전자지갑 복원
 print("2️⃣ 보안 지갑 파일(Wallet) 가상 가동 중...")
 os.makedirs("./bot_wallet", exist_ok=True)
 try:
@@ -34,13 +32,13 @@ except Exception as e:
     print(f"❌ 지갑 파일 복원 실패: {e}")
     sys.exit(1)
 
-# 3. 기업마당 공식 API 호출
+# 🚨 사용자님이 발급받으신 진짜 기업마당 공식 API 주소입니다!
 print("3️⃣ 기업마당 공식 API 서버 호출 중...")
 url = "https://www.bizinfo.go.kr/uss/rss/bizinfoApi.do"
 params = {
     'crtfcKey': bizinfo_key,
     'dataType': 'json',
-    'searchCnt': '300'  # 🛑 안정적인 적재를 위해 첫 테스트는 300건으로 조율합니다.
+    'searchCnt': '300'
 }
 
 try:
@@ -48,17 +46,15 @@ try:
     print(f"📡 API 서버 응답 상태 코드: {response.status_code}")
     
     if response.status_code == 200:
-        # 응답 텍스트 원본이 제대로 들어왔는지 앞부분 살짝 검증
         raw_text = response.text.strip()
         print(f"🔍 원본 데이터 앞글자 샘플: {raw_text[:150]}")
         
         try:
             json_res = response.json()
         except Exception as json_err:
-            print(f"❌ 에러: API 응답을 JSON으로 변환하는 데 실패했습니다. 응답이 JSON 형식이 아닐 수 있습니다: {json_err}")
+            print(f"❌ 에러: API 응답을 JSON으로 변환하는 데 실패했습니다. 원본 텍스트가 JSON 형식이 아닙니다: {json_err}")
             sys.exit(1)
             
-        # 기업마당 데이터 추출 세부 검증
         if isinstance(json_res, list):
             api_data = json_res
         elif isinstance(json_res, dict) and 'jsonArray' in json_res:
@@ -66,17 +62,14 @@ try:
         elif isinstance(json_res, dict) and 'data' in json_res:
             api_data = json_res['data']
         else:
-            # 딕셔너리 자체인 경우
             api_data = [json_res] if json_res else []
 
         if not api_data:
             print("⚠️ 경고: 수집된 공고 배열(List)이 텅 비어 있습니다.")
             sys.exit(1)
             
-        # 데이터프레임 가공
         biz_df = pd.DataFrame(api_data).fillna("")
         print(f"✔️ 데이터프레임 변환 성공! 컬럼 목록: {list(biz_df.columns)}")
-        print(f"✔️ 최신 공고 {len(biz_df)}건 가상 적재 완료!")
     else:
         print(f"❌ API 호출 실패 (HTTP 상태 코드: {response.status_code})")
         print(f"💡 서버 에러 내용: {response.text}")
@@ -85,7 +78,6 @@ except Exception as e:
     print(f"❌ API 통신 실패 단계 에러: {e}")
     sys.exit(1)
 
-# 4. 오라클 클라우드 적재
 print("4️⃣ 오라클 클라우드 DB 최종 적재 시작...")
 def get_oracle_connection():
     return oracledb.connect(
@@ -98,12 +90,7 @@ def get_oracle_connection():
 
 try:
     engine = create_engine('oracle+oracledb://', creator=get_oracle_connection)
-    
-    # 💡 [핵심 조치] 오라클 특정 컬럼 데이터 길이 초과 에러 방지를 위해, 
-    # 기존 컬럼 데이터 타입을 유연한 텍스트 구조로 자동 가공하여 replace 합니다.
     biz_df = biz_df.astype(str)
-    
-    # 오라클 DB의 'bizinfo_tb' 테이블을 통째로 갱신합니다.
     biz_df.to_sql('bizinfo_tb', engine, if_exists='replace', index=False)
     print("🎉 [대성공] 오라클 DB 자동 업데이트 가동 성공!")
 except Exception as e:
