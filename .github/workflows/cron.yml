@@ -13,6 +13,8 @@ jobs:
     steps:
     - name: 1️⃣ 깃허브 서버로 코드 다운로드
       uses: actions/checkout@v3
+      with:
+        ref: main  # 🚨 깃허브 가상 로봇에게 유령 브랜치로 새지 말고 무조건 'main' 방에서 코드를 가져오라고 강제 명령하는 치트키입니다!
 
     - name: 2️⃣ 파이썬 환경 세팅 (버전 3.10)
       uses: actions/setup-python@v4
