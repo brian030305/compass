@@ -34,33 +34,46 @@ except Exception as e:
     print(f"❌ 지갑 파일 복원 실패: {e}")
     sys.exit(1)
 
-# 3. 기업마당 공공데이터 API 호출 및 데이터 수집
-print("3️⃣ 기업마당 최신 API 데이터 호출 중...")
-url = "https://api.odcloud.kr/api/3034791/v1/uddi:80a74cfd-55d2-4dd3-81c7-d01567d0b3c4"
-params = {'page': '1', 'perPage': '1000', 'returnType': 'JSON'}
+# 3. 기업마당 정식 자체 API 호출 및 데이터 수집
+print("3️⃣ 기업마당 공식 API 서버 호출 중...")
+
+# 💡 [핵심 교체] 사용자님이 발급받으신 기업마당 전용 API 주소와 파라미터 양식으로 변경합니다.
+url = "https://www.bizinfo.go.kr/uss/rss/bizinfoApi.do"
 
 bizinfo_key = os.getenv("BIZINFO_API_KEY")
 if not bizinfo_key:
     print("❌ 에러: 깃허브 비밀키에서 BIZINFO_API_KEY를 불러오지 못했습니다.")
     sys.exit(1)
 
-# 💡 [핵심 교체] 공공데이터포털 특유의 인증키 파싱 에러를 방지하기 위해 
-# headers 대신 params에 직접 인증키를 심어서 보내는 가장 확실한 방식으로 전환합니다.
-params['serviceKey'] = bizinfo_key
+# 기업마당 자체 API 필수 규격 파라미터 세팅
+params = {
+    'crtfcKey': bizinfo_key, # 👈 이미지에 적혀있던 필수 인증키 파라미터명
+    'dataType': 'json',      # JSON 데이터 타입 강제 지정
+    'searchCnt': '500'       # 한 번에 최대 500건 수집
+}
 
 try:
-    # headers 옵션을 제외하고 params로만 요청을 보냅니다.
+    # 기업마당 서버로 직접 요청을 보냅니다.
     response = requests.get(url, params=params, timeout=30)
     if response.status_code == 200:
-        api_data = response.json().get('data', [])
+        # 기업마당 자체 API는 응답 구조가 공공데이터포털과 다를 수 있으므로 안전하게 파싱합니다.
+        try:
+            json_res = response.json()
+            # 기업마당 응답 데이터 구조에 맞춰 추출 (응답 구조가 리스트 형태이거나 json_res인 경우 대비)
+            api_data = json_res if isinstance(json_res, list) else json_res.get('jsonArray', json_res.get('data', []))
+        except Exception:
+            # 혹시나 예외적인 가공 처리가 필요할 경우를 대비해 데이터프레임으로 우선 변환
+            api_data = response.json()
+            
         if not api_data:
-            print("⚠️ API 응답에 'data' 내용물이 비어 있습니다. API 키(인코딩/디코딩)를 교체해야 할 수 있습니다.")
+            print("⚠️ API 호출은 성공했으나 수집된 공고 내용물이 비어 있습니다.")
             sys.exit(1)
+            
         biz_df = pd.DataFrame(api_data).fillna("")
-        print(f"✔️ 최신 기업마당 공고 {len(biz_df)}건 수집 완료!")
+        print(f"✔️ 최신 기업마당 자체 공고 {len(biz_df)}건 수집 완료!")
     else:
         print(f"❌ API 호출 실패 (HTTP 상태 코드: {response.status_code})")
-        print(f"💡 서버 응답 내용: {response.text}") # 👈 에러 원인을 더 자세히 보기 위해 로그 추가
+        print(f"💡 서버 응답 내용: {response.text}")
         sys.exit(1)
 except Exception as e:
     print(f"❌ API 통신 에러 발생: {e}")
