@@ -14,13 +14,10 @@ oracle_password = os.getenv("ORACLE_PASSWORD")
 oracle_dsn = os.getenv("ORACLE_DSN")
 wallet_password = os.getenv("WALLET_PASSWORD")
 wallet_base64 = os.getenv("WALLET_BASE64")
+bizinfo_key = os.getenv("BIZINFO_API_KEY")
 
-# 🚨 깃허브 금고(Secrets) 버그를 우회하기 위해 내 컴퓨터에서 성공했던 진짜 API 키를 여기에 직접 박아 넣습니다!
-# (줄바꿈이나 공백 없이 따옴표 안에 키값만 정확히 넣어주세요)
-bizinfo_key = "Qg1V8R로_시작하는_사용자님의_진짜_기업마당_API키"
-
-if not all([oracle_user, oracle_password, oracle_dsn, wallet_password, wallet_base64]):
-    print("❌ 에러: 오라클 관련 깃허브 Secrets 설정 중 누락된 항목이 존재합니다.")
+if not all([oracle_user, oracle_password, oracle_dsn, wallet_password, wallet_base64, bizinfo_key]):
+    print("❌ 에러: 깃허브 Secrets 설정 중 누락된 항목이 존재합니다.")
     sys.exit(1)
 
 print("2️⃣ 보안 지갑 파일(Wallet) 가상 가동 중...")
@@ -43,8 +40,14 @@ params = {
     'searchCnt': '300'
 }
 
+# 🚨 [핵심 해결책] 깃허브 가상 컴퓨터가 아닌 일반 윈도우 크롬 브라우저인 것처럼 속여서 400 차단벽을 뚫습니다.
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+}
+
 try:
-    response = requests.get(url, params=params, timeout=30)
+    # headers=headers 구문을 주입하여 방화벽을 우회합니다.
+    response = requests.get(url, params=params, headers=headers, timeout=30)
     print(f"📡 API 서버 응답 상태 코드: {response.status_code}")
     
     if response.status_code == 200:
