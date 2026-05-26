@@ -8,19 +8,17 @@ from datetime import datetime
 import oracledb
 from sqlalchemy import create_engine
 
-# 🚨 [수정됨] 오라클 DB 엔진 생성 및 클라우드 지갑 자동 복원 로직 탑재
 @st.cache_resource
 def get_oracle_engine():
-    # 1. 스트림릿 Secrets에서 환경변수 불러오기 (대소문자/형식 오류 방지용 호환 코드)
     oracle_user = st.secrets.get("ORACLE_USER", "ADMIN")
     oracle_password = st.secrets.get("ORACLE_PASSWORD", "")
     oracle_dsn = st.secrets.get("ORACLE_DSN", "")
     wallet_password = st.secrets.get("WALLET_PASSWORD", "")
     wallet_base64 = st.secrets.get("WALLET_BASE64", "")
     
-    wallet_location = "./bot_wallet"
+    # 🚨 스트림릿 환경에서 경로를 절대 잃어버리지 않도록 절대경로(abspath)로 콱 박아버립니다.
+    wallet_location = os.path.abspath("./bot_wallet")
     
-    # 2. 스트림릿 클라우드 깡통 서버에 오라클 지갑 파일(Wallet) 실시간 복원
     if not os.path.exists(wallet_location) and wallet_base64:
         os.makedirs(wallet_location, exist_ok=True)
         with open("bot_wallet.zip", "wb") as f:
@@ -28,12 +26,12 @@ def get_oracle_engine():
         with zipfile.ZipFile("bot_wallet.zip", 'r') as zip_ref:
             zip_ref.extractall(wallet_location)
 
-    # 3. DB 접속 엔진 생성
     def get_connection():
         return oracledb.connect(
             user=oracle_user,
             password=oracle_password,
             dsn=oracle_dsn,
+            config_dir=wallet_location,     # 🚨 [핵심] 주소록(tnsnames.ora)이 이 폴더에 있다고 정확히 가르쳐줍니다!
             wallet_location=wallet_location,
             wallet_password=wallet_password
         )
