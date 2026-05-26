@@ -32,7 +32,6 @@ except Exception as e:
     print(f"❌ 지갑 파일 복원 실패: {e}")
     sys.exit(1)
 
-# 🚨 문법 에러 유발 문구 완전 수정 완료
 print("3️⃣ 기업마당 공식 API 서버 호출 중...")
 url = "https://www.bizinfo.go.kr/uss/rss/bizinfoApi.do"
 params = {
@@ -52,7 +51,7 @@ try:
         try:
             json_res = response.json()
         except Exception as json_err:
-            print(f"❌ 에러: API 응답을 JSON으로 변환하는 데 실패했습니다. 원본 텍스트가 JSON 형식이 아닙니다: {json_err}")
+            print(f"❌ 에러: API 응답을 JSON으로 변환하는 데 실패했습니다: {json_err}")
             sys.exit(1)
             
         if isinstance(json_res, list):
