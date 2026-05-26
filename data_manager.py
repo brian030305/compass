@@ -8,6 +8,7 @@ from datetime import datetime
 import oracledb
 from sqlalchemy import create_engine
 
+# 🚨 [수정됨] 깡통 서버 지갑 압축 해제 및 절대경로(config_dir) 탑재 완료
 @st.cache_resource
 def get_oracle_engine():
     oracle_user = st.secrets.get("ORACLE_USER", "ADMIN")
@@ -16,7 +17,6 @@ def get_oracle_engine():
     wallet_password = st.secrets.get("WALLET_PASSWORD", "")
     wallet_base64 = st.secrets.get("WALLET_BASE64", "")
     
-    # 🚨 스트림릿 환경에서 경로를 절대 잃어버리지 않도록 절대경로(abspath)로 콱 박아버립니다.
     wallet_location = os.path.abspath("./bot_wallet")
     
     if not os.path.exists(wallet_location) and wallet_base64:
@@ -31,12 +31,11 @@ def get_oracle_engine():
             user=oracle_user,
             password=oracle_password,
             dsn=oracle_dsn,
-            config_dir=wallet_location,     # 🚨 [핵심] 주소록(tnsnames.ora)이 이 폴더에 있다고 정확히 가르쳐줍니다!
+            config_dir=wallet_location,     # 🚨 주소록 위치 강제 고정
             wallet_location=wallet_location,
             wallet_password=wallet_password
         )
     return create_engine('oracle+oracledb://', creator=get_connection)
-
 
 def fetch_safety_cert_data():
     url = "https://api.odcloud.kr/api/15040703/v1/uddi:9bbbc4ab-d825-401f-b7c2-ff065808acec"
