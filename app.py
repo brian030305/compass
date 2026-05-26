@@ -691,52 +691,59 @@ elif st.session_state.current_page == '생존율 예측':
         if ind_str == "선택해주세요":
             st.warning("왼쪽 사이드바에서 기업 정보(업종 등)를 먼저 설정해주세요!")
         else:
-            with st.spinner("과거 통계 데이터와 기업 데이터를 융합 분석 중입니다... (약 10~15초 소요)"):
-                
-                # 1. 과거 통계 및 실시간 API 융합
-                df_biz = fetch_national_business_api()     
-                df_keit = fetch_local_keit_announcement()  
-                df_mss_sup = fetch_mss_data()              
-                df_cert = fetch_mss_tech_cert_api()        
-                
-                # 2. 과도한 토큰 소모를 막기 위해, 현재 기업의 업종/기술 키워드와 일치하는 데이터만 일부 추출
-                def get_summary(df, keyword, max_rows=3):
-                    if df is None or df.empty: 
-                        return "해당 데이터 없음"
-                    mask = df.apply(lambda row: row.astype(str).str.contains(keyword, case=False).any(), axis=1)
-                    filtered = df[mask]
-                    if filtered.empty: 
-                        return "관련 키워드 매칭 데이터 없음"
-                    return filtered.head(max_rows).to_string()
+            with st.spinner("과거 통계 데이터와 현재 실시간 데이터를 융합 분석 중입니다... (약 10~15초 소요)"):
+            
+            # 1. 과거 통계 API 융합 (기존 유지)
+            df_biz = fetch_national_business_api()     
+            df_keit = fetch_local_keit_announcement()  
+            df_cert = fetch_mss_tech_cert_api()        
+            
+            # 🎯 [추가] 2. 현재 실시간 기업마당 데이터 불러오기
+            df_current = fetch_bizinfo_api()
+            
+            def get_summary(df, keyword, max_rows=3):
+                if df is None or df.empty: 
+                    return "해당 데이터 없음"
+                mask = df.apply(lambda row: row.astype(str).str.contains(keyword, case=False).any(), axis=1)
+                filtered = df[mask]
+                if filtered.empty: 
+                    return "관련 키워드 매칭 데이터 없음"
+                return filtered.head(max_rows).to_string()
 
-                biz_summary = get_summary(df_biz, ind_str)
-                keit_summary = get_summary(df_keit, tech_str if tech_str else ind_str)
-                cert_summary = get_summary(df_cert, tech_str if tech_str else ind_str)
-                
-                # 3. AI 프롬프트에 융합 데이터 주입
-                prompt = f"""
-                현재 대상 기업은 '{loc_str}' 소재의 '{ind_str}' 업종이며, '{tech_str}' 기술을 다루고 있습니다.
-                아래에 제공된 공공 빅데이터 요약본을 반드시 분석 근거로 활용하여 '생존율 정밀 진단 리포트'를 작성해 줘.
+            # 과거 데이터 요약
+            biz_summary = get_summary(df_biz, ind_str)
+            keit_summary = get_summary(df_keit, tech_str if tech_str else ind_str)
+            cert_summary = get_summary(df_cert, tech_str if tech_str else ind_str)
+            
+            # 🎯 [추가] 현재 데이터 요약 (유저 맞춤형 공고 3개 추출)
+            current_biz_summary = get_summary(df_current, tech_str if tech_str else ind_str)
+            
+            # 3. AI 프롬프트에 과거와 현재 데이터 동시 주입 및 역할 부여
+            prompt = f"""
+            현재 대상 기업은 '{loc_str}' 소재의 '{ind_str}' 업종이며, '{tech_str}' 기술을 다루고 있습니다.
+            아래에 제공된 [과거 공공데이터]와 [현재 실시간 지원사업 데이터]를 융합하여 '생존율 정밀 진단 리포트'를 작성해 줘.
 
-                [과거 공공데이터 기반 요약]
-                - 전국사업체조사 관련 업종 통계: {biz_summary}
-                - KEIT R&D 사업공고 트렌드: {keit_summary}
-                - 기술개발제품 인증현황(벤치마킹 대상): {cert_summary}
+            📊 [과거 공공데이터 트렌드 (통계 및 R&D)]
+            - 전국사업체조사 관련 업종 통계: {biz_summary}
+            - KEIT R&D 사업공고 트렌드: {keit_summary}
+            - 타사 기술개발제품 인증현황: {cert_summary}
 
-                위 데이터를 근거로 하여 아래 4가지 목차에 맞춰 심사위원을 설득할 수 있는 수준의 전문적인 문장으로 작성할 것.
-                1. 지역({loc_str}) 및 산업군 생존 환경 분석 (전국사업체조사 데이터 수치 인용)
-                2. 주요 리스크 요인 3가지 (R&D 트렌드 기반의 기술, 자금, 시장 측면)
-                3. 타사 기술인증 성공 사례를 벤치마킹한 리스크 극복 전략
-                4. 향후 정부지원사업 확보 및 생존율 향상 방향성
-                """
-                
-                try:
-                    # 🚨 [수정] 챗봇 세션 대신 백그라운드 전용 모델로 일회성 호출
-                    background_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-                    response = background_model.generate_content(prompt)
-                    st.session_state.survival_report = response.text
-                except Exception as e:
-                    st.error(f"AI 분석 중 오류가 발생했습니다: {e}")
+            🔥 [현재 실시간 지원사업 현황 (기업마당)]
+            - 현재 당장 지원 가능한 핵심 공고 목록: {current_biz_summary}
+
+            위 두 가지 데이터를 비교 분석하여 아래 목차에 맞춰 심사위원을 설득할 수 있는 수준의 전문적인 문장으로 작성할 것.
+            1. 과거 통계 기반 지역({loc_str}) 및 산업군 생존 환경 분석
+            2. 주요 리스크 요인 3가지 (R&D 트렌드 기반)
+            3. 과거 사례를 벤치마킹한 리스크 극복 전략
+            4. 🎯 [핵심] 현재 열려있는 실시간 지원사업({current_biz_summary} 참조)을 어떻게 활용하여 당장의 생존율을 끌어올릴 것인지 구체적 액션 플랜 제시
+            """
+            
+            try:
+                background_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+                response = background_model.generate_content(prompt)
+                st.session_state.survival_report = response.text
+            except Exception as e:
+                st.error(f"AI 분석 중 오류가 발생했습니다: {e}")
                 
     if st.session_state.survival_report:
         st.markdown(st.session_state.survival_report)
