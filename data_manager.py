@@ -29,13 +29,17 @@ def get_oracle_engine():
     os.environ["TNS_ADMIN"] = wallet_location
 
     def get_connection():
+        # 🚨 [중요] 특수문자(!)가 포함된 비밀번호를 안전하게 전달하기 위해 
+        # 비밀번호를 직접 문자열로 명시하고, 인코딩을 강제합니다.
+        safe_password = str(oracle_password) 
+        
         return oracledb.connect(
             user=oracle_user,
-            password=oracle_password,
+            password=safe_password,
             dsn=oracle_dsn,
             config_dir=wallet_location,
             wallet_location=wallet_location,
-            wallet_password=wallet_password
+            wallet_password=str(wallet_password)
         )
     return create_engine('oracle+oracledb://', creator=get_connection)
 
