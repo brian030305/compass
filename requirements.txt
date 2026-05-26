@@ -1,5 +1,8 @@
 streamlit
+pandas
+requests
+oracledb
+sqlalchemy
 google-generativeai
 python-docx
 streamlit-calendar
-st-gsheets-connection
