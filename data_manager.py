@@ -7,38 +7,35 @@ from datetime import datetime
 import oracledb
 from sqlalchemy import create_engine
 
-# 🚨 [권한 문제 해결] 스트림릿에서 무조건 쓰기가 가능한 /tmp 폴더로 경로 변경
+# 🚨 [최종 보완] 스트림릿 Secrets 누락 여부 완벽 검증 및 /tmp 활용
 @st.cache_resource
 def get_oracle_engine():
-    oracle_user = st.secrets.get("ORACLE_USER", "ADMIN")
-    oracle_password = st.secrets.get("ORACLE_PASSWORD", "")
-    oracle_dsn = st.secrets.get("ORACLE_DSN", "")
-    wallet_password = st.secrets.get("WALLET_PASSWORD", "")
-    wallet_base64 = st.secrets.get("WALLET_BASE64", "")
+    oracle_user = st.secrets.get("ORACLE_USER")
+    oracle_password = st.secrets.get("ORACLE_PASSWORD")
+    oracle_dsn = st.secrets.get("ORACLE_DSN")
+    wallet_password = st.secrets.get("WALLET_PASSWORD")
+    wallet_base64 = st.secrets.get("WALLET_BASE64")
     
-    # 서버의 절대 권한 구역인 /tmp 아래에 지갑 폴더 생성
-    wallet_location = "/tmp/oracle_wallet"
-    
-    if wallet_base64:
-        os.makedirs(wallet_location, exist_ok=True)
-        zip_path = os.path.join(wallet_location, "wallet.zip")
+    # 1. 금고(Secrets)가 비어있는지 강제 검사
+    if not wallet_base64:
+        st.error("❌ [치명적 원인 발견] 스트림릿 Secrets에 WALLET_BASE64 값이 없습니다! 지갑 텍스트를 읽어오지 못했습니다.")
+        st.stop()
         
-        # 1. Base64 텍스트를 진짜 zip 파일로 만들기
-        with open(zip_path, "wb") as f:
-            f.write(base64.b64decode(wallet_base64))
-            
-        # 2. 압축 풀기
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(wallet_location)
-            
-        # 🚨 [안전장치] 만약 압축이 안 풀렸거나 파일이 없으면 화면에 붉은색으로 직접 경고를 띄움
-        extracted_files = os.listdir(wallet_location)
-        if "tnsnames.ora" not in extracted_files:
-            st.error(f"❌ 지갑 압축은 풀렸으나 주소록 파일이 없습니다! 현재 폴더 내부: {extracted_files}")
-            st.stop() # 서버가 혼자 뻗기 전에 코드 실행을 멈추고 화면에 원인을 보여줌
-
-    # 오라클이 주소록을 절대 잃어버리지 않게 시스템 환경변수 자체를 조작
-    os.environ["TNS_ADMIN"] = wallet_location
+    wallet_location = "/tmp/oracle_wallet"
+    os.makedirs(wallet_location, exist_ok=True)
+    zip_path = os.path.join(wallet_location, "wallet.zip")
+    
+    # 2. 압축 강제 해제
+    with open(zip_path, "wb") as f:
+        f.write(base64.b64decode(wallet_base64))
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(wallet_location)
+        
+    # 3. 주소록 파일 유무 강제 검사
+    tns_file = os.path.join(wallet_location, "tnsnames.ora")
+    if not os.path.exists(tns_file):
+        st.error("❌ 지갑 텍스트(Base64)를 풀었으나 tnsnames.ora 파일이 없습니다. 복사 붙여넣기 과정에서 글자가 누락되었을 수 있습니다.")
+        st.stop()
 
     def get_connection():
         return oracledb.connect(
@@ -50,7 +47,6 @@ def get_oracle_engine():
             wallet_password=wallet_password
         )
     return create_engine('oracle+oracledb://', creator=get_connection)
-
 def fetch_safety_cert_data():
     url = "https://api.odcloud.kr/api/15040703/v1/uddi:9bbbc4ab-d825-401f-b7c2-ff065808acec"
     headers = {'Authorization': f'Infuser {st.secrets["SAFETY_API_KEY"]}'}
