@@ -4,9 +4,9 @@ import os
 import base64
 import zipfile
 
+# 함수 이름을 다시 get_oracle_engine으로 변경하여 app.py가 찾을 수 있게 합니다.
 @st.cache_resource
-def get_oracle_connection():
-    # secrets.toml에서 정보를 가져옵니다.
+def get_oracle_engine():
     user = st.secrets["ORACLE_USER"]
     password = st.secrets["ORACLE_PASSWORD"]
     dsn = st.secrets["ORACLE_DSN"]
