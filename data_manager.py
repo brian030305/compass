@@ -3,9 +3,8 @@ import oracledb
 import pandas as pd
 import requests
 
-@st.cache_resource
+# 1. 캐시 데드락을 방지하기 위해 @st.cache_resource를 제거하고 호출할 때마다 깨끗하게 연결합니다.
 def get_oracle_engine():
-    # 🚨 월렛(지갑) 파일 없이 시크릿의 긴 주소(DSN)만으로 직접 연결합니다!
     return oracledb.connect(
         user=st.secrets["ORACLE_USER"],
         password=st.secrets["ORACLE_PASSWORD"],
@@ -202,20 +201,18 @@ def fetch_mss_tech_cert_api():
 def fetch_bizinfo_api():
     try:
         engine = get_oracle_engine()
-        # 🚨 구글 시트 대신 오라클 DB의 'bizinfo_tb' 방에서 데이터를 즉시 가져옵니다.
         df = pd.read_sql("SELECT * FROM bizinfo_tb FETCH FIRST 500 ROWS ONLY", engine)
         
         if df.empty:
             return pd.DataFrame()
             
-        # 마감일 필터링 (기존 로직 완벽 유지)
+        # 🚨 [대시보드 빈 화면 해결 코드] 
+        # 오라클이 대문자로 돌려준 컬럼명을 기존 대시보드 코드가 이해할 수 있는 단어들로 자동 번역해 줍니다.
+        known_keys = ['pblancId', 'pblancNm', 'reqstEndDe', 'reqstBgnde', 'insttNm', 'bizId', 'entrprsStle', 'jrsdcAsct', 'exntcInsttNm', 'pblancUrl']
+        mapping = {key.upper(): key for key in known_keys}
+        df = df.rename(columns=lambda x: mapping.get(x.upper(), x))
+        
+        # 💡 이제 아래의 기존 마감일 필터 및 데이터 가공 로직이 완벽하게 인식됩니다!
         if 'reqstEndDe' in df.columns:
             df['마감일_계산용'] = pd.to_datetime(df['reqstEndDe'], errors='coerce')
-            today = pd.Timestamp(datetime.now().date())
-            valid_df = df[(df['마감일_계산용'] >= today) | (df['마감일_계산용'].isna())]
-            return valid_df.drop(columns=['마감일_계산용']).head(200).reset_index(drop=True)
-        return df.head(200)
-            
-    except Exception as e:
-        st.error(f"오라클 DB(기업마당) 읽기 실패: {e}")
-        return pd.DataFrame()
+            today = pd.Timestamp(datetime.today().date())
