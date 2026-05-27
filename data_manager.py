@@ -211,3 +211,17 @@ def admin_delete_user(user_id):
     except Exception as e:
         st.error(f"계정 삭제 중 오류 발생: {e}")
         return False
+
+def admin_change_user_password(user_id, hashed_pw):
+    """관리자용: 특정 회원 비밀번호 강제 변경"""
+    try:
+        engine = get_sqlalchemy_engine()
+        with engine.connect() as conn:
+            # UPDATE 문을 사용하여 해당 ID의 비밀번호만 교체합니다.
+            query = text("UPDATE users_tb SET PW = :pw WHERE TO_CHAR(ID) = :user_id")
+            conn.execute(query, {"pw": hashed_pw, "user_id": str(user_id)})
+            conn.commit() 
+        return True
+    except Exception as e:
+        print(f"관리자 비밀번호 변경 오류: {e}")
+        return False
