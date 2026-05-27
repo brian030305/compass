@@ -203,7 +203,7 @@ def fetch_mss_tech_cert_api():
 # ==========================================
 # 🌐 [수정됨] 기업마당 (Bizinfo) 데이터 로드 (이제 오라클 DB에서 읽어옵니다)
 # ==========================================
-@st.cache_data(ttl=3600) 
+#@st.cache_data(ttl=3600) 
 def fetch_bizinfo_api():
     try:
         engine = get_oracle_engine()
