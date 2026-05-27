@@ -62,7 +62,6 @@ if not st.session_state.logged_in:
     # 🎯 오라클 DB에서 'users_tb'의 데이터를 불러옵니다.
     conn = get_oracle_engine()
     users_df = pd.read_sql("SELECT * FROM users_tb", conn)
-    conn.close()
     
     # --- [로그인 탭] ---
     with tab1:
