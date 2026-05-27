@@ -72,7 +72,7 @@ if not st.session_state.logged_in:
             
         if submit_btn:
             if login_id in users_df['ID'].astype(str).values:
-                user_idx = users_df.index[users_df['id'].astype(str) == login_id][0]
+                user_idx = users_df.index[users_df['ID'].astype(str) == login_id][0]
                 stored_password = str(users_df.at[user_idx, 'pw'])
                 
                 # 1. 이미 암호화가 완료된 비밀번호인지 확인
