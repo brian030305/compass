@@ -59,9 +59,13 @@ if not st.session_state.logged_in:
     
     tab1, tab2 = st.tabs(["로그인", "회원가입"])
     
-    # 🎯 오라클 DB에서 'users_tb'의 데이터를 불러옵니다.
+        # 🎯 오라클 DB에서 'users_tb'의 데이터를 불러옵니다.
     conn = get_oracle_engine()
     users_df = pd.read_sql("SELECT * FROM users_tb", conn)
+    
+    # 👇 알케미 엔진이 저장하면서 소문자로 만든 컬럼명들을 무조건 대문자로 읽어오게 강제합니다.
+    users_df.columns = users_df.columns.str.upper() 
+    
     
     # --- [로그인 탭] ---
     with tab1:
@@ -233,21 +237,23 @@ def edit_company_profile():
         st.query_params["tech"] = tech_field_input
         st.query_params["location"] = location_input
         
-        # 🚨 [버그 수정] 수정한 정보를 오라클 클라우드 DB에 실시간으로 반영 및 저장
         with st.spinner("변경 사항을 오라클 클라우드 DB에 영구 저장 중입니다..."):
-           try:
-                engine = get_oracle_engine() # 👈 읽어올 때는 원래 엔진 유지
+            try:
+                engine = get_oracle_engine() # 👈 읽어올 때는 원래 엔진
                 users_df = pd.read_sql("SELECT * FROM users_tb", engine).fillna("")
                 
-                mask = users_df['ID'].astype(str) == st.session_state.user_id # (ID가 대문자인지 꼭 확인!)
+                # 🚨 알케미가 마음대로 바꾼 소문자를 다시 대문자로 강제 복구 (KeyError 완벽 방지)
+                users_df.columns = users_df.columns.str.upper()
+                
+                mask = users_df['ID'].astype(str) == st.session_state.user_id
                 if mask.any():
                     users_df.loc[mask, 'COMPANY'] = company_input
                     users_df.loc[mask, 'LOCATION'] = location_input
                     users_df.loc[mask, 'INDUSTRY'] = industry_input
                     users_df.loc[mask, 'TECH'] = tech_field_input
                     
-                    save_engine = get_sqlalchemy_engine() # 👈 쓰기 전용 엔진 생성
-                    users_df.to_sql('users_tb', save_engine, if_exists='replace', index=False) # 👈 save_engine으로 변경
+                    save_engine = get_sqlalchemy_engine() # 👈 저장할 때는 알케미 엔진
+                    users_df.to_sql('users_tb', save_engine, if_exists='replace', index=False)
             except Exception as e:
                 st.error(f"오라클 클라우드 DB 업데이트 중 오류 발생: {e}")
         
