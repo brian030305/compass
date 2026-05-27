@@ -151,7 +151,7 @@ if not st.session_state.logged_in:
                 
                 updated_df = pd.concat([users_df, new_user], ignore_index=True)
                 
-                # 🚨 [버그 수정] 구글 시트 대신 오라클 DB에 새 회원 정보 영구 저장
+                # 오라클 DB에 새 회원 정보 영구 저장
                 engine = get_oracle_engine()
                 updated_df.to_sql('users_tb', engine, if_exists='replace', index=False)
                 
