@@ -496,7 +496,45 @@ if st.session_state.current_page == '대시보드':
                     
         else:
             st.info("💡 좌측 사이드바에서 기업 정보를 설정하시면 맞춤형 지원사업 알림과 생존율 진단을 받아보실 수 있습니다.")
-
+    
+        # =========================================================
+        # 관리자 코드 👇
+        # =========================================================
+        if st.session_state.get('user_id') == 'admin':
+            st.markdown("---")
+            st.subheader("🛡️ 서버 관리자 전용 계정 관리 시스템")
+            st.write("현재 오라클 클라우드 DB에 가입된 전체 회원 목록입니다. 부적절한 계정을 관리할 수 있습니다.")
+            
+            # 1. 전체 회원 데이터 불러오기
+            all_users_df = admin_fetch_all_users()
+            
+            if not all_users_df.empty:
+                # 화면에 표 형태로 깔끔하게 출력
+                st.dataframe(all_users_df, use_container_width=True)
+                
+                # 2. 삭제 기능 UI 구현
+                st.markdown("### ⚠️ 계정 강제 삭제")
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    user_list = all_users_df['ID'].tolist()
+                    if 'admin' in user_list:
+                        user_list.remove('admin')
+                        
+                    selected_delete_id = st.selectbox("삭제할 회원 ID를 선택하세요", user_list, key="admin_delete_select")
+                    
+                with col2:
+                    st.write("") 
+                    st.write("") 
+                    delete_confirm_btn = st.button("❌ 계정 삭제", type="primary", use_container_width=True)
+                    
+                if delete_confirm_btn and selected_delete_id:
+                    with st.spinner(f"'{selected_delete_id}' 계정을 삭제하는 중..."):
+                        if admin_delete_user(selected_delete_id):
+                            st.success(f"🎉 '{selected_delete_id}' 계정이 성공적으로 삭제되었습니다.")
+                            st.rerun() 
+            else:
+                st.info("현재 가입된 일반 회원 계정이 없습니다.")
             
     if st.session_state.show_chatbot:
         with ai_col:
