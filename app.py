@@ -92,7 +92,7 @@ if not st.session_state.logged_in:
                 elif login_pw == stored_password:
                     hashed_pw = make_hashes(login_pw)
                     users_df.at[user_idx, 'PW'] = hashed_pw
-                    engine = get_oracle_engine()
+                    engine = get_sqlalchemy_engine()
                     users_df.to_sql('users_tb', engine, if_exists='replace', index=False) 
                     
                     st.success(f"보안 업데이트 완료! 환영합니다, {login_id}님!")
@@ -152,7 +152,7 @@ if not st.session_state.logged_in:
                 updated_df = pd.concat([users_df, new_user], ignore_index=True)
                 
                 # 오라클 DB에 새 회원 정보 영구 저장
-                engine = get_oracle_engine()
+                engine = get_sqlalchemy_engine()
                 updated_df.to_sql('users_tb', engine, if_exists='replace', index=False)
                 
                 st.session_state.logged_in = True
@@ -235,18 +235,19 @@ def edit_company_profile():
         
         # 🚨 [버그 수정] 수정한 정보를 오라클 클라우드 DB에 실시간으로 반영 및 저장
         with st.spinner("변경 사항을 오라클 클라우드 DB에 영구 저장 중입니다..."):
-            try:
-                engine = get_oracle_engine()
+           try:
+                engine = get_oracle_engine() # 👈 읽어올 때는 원래 엔진 유지
                 users_df = pd.read_sql("SELECT * FROM users_tb", engine).fillna("")
                 
-                mask = users_df['id'].astype(str) == st.session_state.user_id
+                mask = users_df['ID'].astype(str) == st.session_state.user_id # (ID가 대문자인지 꼭 확인!)
                 if mask.any():
-                    users_df.loc[mask, 'company'] = company_input
-                    users_df.loc[mask, 'location'] = location_input
-                    users_df.loc[mask, 'industry'] = industry_input
-                    users_df.loc[mask, 'tech'] = tech_field_input
+                    users_df.loc[mask, 'COMPANY'] = company_input
+                    users_df.loc[mask, 'LOCATION'] = location_input
+                    users_df.loc[mask, 'INDUSTRY'] = industry_input
+                    users_df.loc[mask, 'TECH'] = tech_field_input
                     
-                    users_df.to_sql('users_tb', engine, if_exists='replace', index=False)
+                    save_engine = get_sqlalchemy_engine() # 👈 쓰기 전용 엔진 생성
+                    users_df.to_sql('users_tb', save_engine, if_exists='replace', index=False) # 👈 save_engine으로 변경
             except Exception as e:
                 st.error(f"오라클 클라우드 DB 업데이트 중 오류 발생: {e}")
         
