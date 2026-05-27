@@ -15,6 +15,11 @@ from data_manager import (
     fetch_mss_tech_cert_api, fetch_bizinfo_api
 )
 
+conn = get_oracle_engine()
+users_df = pd.read_sql("SELECT * FROM USERS_TB", conn)
+st.write("진짜 컬럼명:", users_df.columns.tolist())
+st.stop() # 여기서 멈춰서 화면에 이름표만 띄워줍니다.
+
 # 1. 기본 설정
 st.set_page_config(page_title="창업나침반 - Startup Compass", layout="wide")
 
