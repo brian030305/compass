@@ -306,7 +306,7 @@ if "industry" in st.session_state and "tech_field" in st.session_state:
 
 if "chat_session" not in st.session_state:
     model = genai.GenerativeModel(model_name="gemini-2.5-flash", tools=tools_list, system_instruction=base_instruction)
-    st.session_state.chat_session = model.start_chat(enable_automatic_function_calling=True)
+    st.session_state.chat_session = model.start_chat(enable_automatic_function_calling=False)
 
 # 4. 메인 화면 출력부
 company_name = st.session_state.get('company_name', st.query_params.get("company", "테크스타트업(주)"))
