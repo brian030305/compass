@@ -3,16 +3,21 @@ import oracledb
 import pandas as pd
 import requests
 from datetime import datetime
+from sqlalchemy import create_engine # 👈 [추가됨] 판다스 저장용 번역기
 
 oracledb.defaults.fetch_lobs = False
 
-# 🚨 지갑 파일 없이 시크릿 정보 3개만으로 연결합니다!
+# 👇 기존 함수를 통째로 지우고 아래 코드로 교체해 주세요!
 def get_oracle_engine():
-    return oracledb.connect(
-        user=st.secrets["ORACLE_USER"],
-        password=st.secrets["ORACLE_PASSWORD"],
-        dsn=st.secrets["ORACLE_DSN"]
-    )
+    # 1. 오라클과 다이렉트로 연결하는 핵심 로직
+    def creator():
+        return oracledb.connect(
+            user=st.secrets["ORACLE_USER"],
+            password=st.secrets["ORACLE_PASSWORD"],
+            dsn=st.secrets["ORACLE_DSN"]
+        )
+    # 2. 판다스가 좋아하는 형태로 포장해서 반환
+    return create_engine("oracle+oracledb://", creator=creator)
 
 def fetch_safety_cert_data():
     url = "https://api.odcloud.kr/api/15040703/v1/uddi:9bbbc4ab-d825-401f-b7c2-ff065808acec"
