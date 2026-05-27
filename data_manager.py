@@ -4,7 +4,7 @@ import pandas as pd
 import requests
 
 @st.cache_resource
-def def get_oracle_engine():
+def get_oracle_engine():
     # 깃허브에 올린 폴더명(wallet)을 경로로 직접 지정합니다.
     wallet_dir = "./wallet" 
     
