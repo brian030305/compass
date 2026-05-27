@@ -208,7 +208,7 @@ def fetch_bizinfo_api():
     try:
         engine = get_oracle_engine()
         # 🚨 구글 시트 대신 오라클 DB의 'bizinfo_tb' 방에서 데이터를 즉시 가져옵니다.
-        df = pd.read_sql("SELECT * FROM bizinfo_tb FETCH FIRST 500 ROWS ONLY", engine.execution_options(timeout=10))
+        df = pd.read_sql("SELECT * FROM bizinfo_tb FETCH FIRST 500 ROWS ONLY", engine)
         
         if df.empty:
             return pd.DataFrame()
