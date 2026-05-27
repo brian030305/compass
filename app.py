@@ -6,7 +6,7 @@ import io
 import re
 import hashlib
 from docx import Document
-from data_manager import get_oracle_engine
+from data_manager import get_oracle_engine, get_sqlalchemy_engine
 from datetime import datetime, timedelta
 from data_manager import (
     fetch_safety_cert_data, fetch_mss_data, fetch_ktl_data,
