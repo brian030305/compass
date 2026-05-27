@@ -4,6 +4,7 @@ import pandas as pd
 import requests
 from datetime import datetime
 from sqlalchemy import create_engine
+from sqlalchemy import text
 
 # LOB 데이터(긴 텍스트) 끊김 방지 설정
 oracledb.defaults.fetch_lobs = False
@@ -184,3 +185,29 @@ def fetch_bizinfo_api():
     except Exception as e:
         st.error(f"오라클 DB(기업마당) 읽기 실패: {e}")
         return pd.DataFrame()
+
+
+def admin_fetch_all_users():
+    """관리자용: 전체 회원 목록 조회 (대문자 강제 유지)"""
+    try:
+        engine = get_oracle_engine() # 읽기 전용 엔진
+        df = pd.read_sql("SELECT ID, COMPANY, LOCATION, INDUSTRY, TECH FROM users_tb", engine).fillna("")
+        df.columns = df.columns.str.upper() # 대문자 통일
+        return df
+    except Exception as e:
+        st.error(f"회원 목록을 불러오는 중 오류 발생: {e}")
+        return pd.DataFrame()
+
+def admin_delete_user(user_id):
+    """관리자용: 특정 회원 계정 삭제 (CLOB 타입 호환 반영)"""
+    try:
+        engine = get_sqlalchemy_engine() # 쓰기(저장) 전용 알케미 엔진
+        with engine.connect() as conn:
+            # TO_CHAR(ID)를 사용하여 CLOB 타입 비교 에러(ORA-00932) 원천 차단
+            query = text("DELETE FROM users_tb WHERE TO_CHAR(ID) = :user_id")
+            conn.execute(query, {"user_id": str(user_id)})
+            conn.commit() # 오라클 필수 커밋
+        return True
+    except Exception as e:
+        st.error(f"계정 삭제 중 오류 발생: {e}")
+        return False
