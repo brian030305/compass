@@ -5,16 +5,11 @@ import requests
 
 @st.cache_resource
 def get_oracle_engine():
-    # 깃허브에 올린 폴더명(wallet)을 경로로 직접 지정합니다.
-    wallet_dir = "./wallet" 
-    
+    # 🚨 월렛(지갑) 파일 없이 시크릿의 긴 주소(DSN)만으로 직접 연결합니다!
     return oracledb.connect(
         user=st.secrets["ORACLE_USER"],
         password=st.secrets["ORACLE_PASSWORD"],
-        dsn=st.secrets["ORACLE_DSN"],
-        config_dir=wallet_dir,
-        wallet_location=wallet_dir,
-        wallet_password=st.secrets["WALLET_PASSWORD"]
+        dsn=st.secrets["ORACLE_DSN"]
     )
 
 def fetch_safety_cert_data():
