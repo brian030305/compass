@@ -73,7 +73,7 @@ if not st.session_state.logged_in:
         if submit_btn:
             if login_id in users_df['ID'].astype(str).values:
                 user_idx = users_df.index[users_df['ID'].astype(str) == login_id][0]
-                stored_password = str(users_df.at[user_idx, 'pw'])
+                stored_password = str(users_df.at[user_idx, 'PW'])
                 
                 # 1. 이미 암호화가 완료된 비밀번호인지 확인
                 if check_hashes(login_pw, stored_password):
@@ -91,7 +91,7 @@ if not st.session_state.logged_in:
                 # 2. 예전에 만들어둔 평문 비밀번호인 경우 -> 로그인 허용 및 자동 암호화 후 오라클 반영
                 elif login_pw == stored_password:
                     hashed_pw = make_hashes(login_pw)
-                    users_df.at[user_idx, 'pw'] = hashed_pw
+                    users_df.at[user_idx, 'PW'] = hashed_pw
                     engine = get_oracle_engine()
                     users_df.to_sql('users_tb', engine, if_exists='replace', index=False) 
                     
@@ -99,10 +99,10 @@ if not st.session_state.logged_in:
                     st.session_state.logged_in = True
                     st.session_state.user_id = login_id
                     
-                    st.session_state.company_name = str(users_df.at[user_idx, 'company'])
-                    st.session_state.location = str(users_df.at[user_idx, 'location'])
-                    st.session_state.industry = str(users_df.at[user_idx, 'industry'])
-                    st.session_state.tech_field = str(users_df.at[user_idx, 'tech'])
+                    st.session_state.company_name = str(users_df.at[user_idx, 'COMPANY'])
+                    st.session_state.location = str(users_df.at[user_idx, 'LOCATION'])
+                    st.session_state.industry = str(users_df.at[user_idx, 'INDUSTRY'])
+                    st.session_state.tech_field = str(users_df.at[user_idx, 'TECH'])
                     
                     st.rerun()
                 else:
@@ -140,13 +140,13 @@ if not st.session_state.logged_in:
             else:
                 hashed_pw = make_hashes(signup_pw)
                 new_user = pd.DataFrame([{
-                    "id": signup_id, 
-                    "pw": hashed_pw, 
-                    "company": signup_id,
-                    "location": signup_location,
-                    "industry": signup_industry,
-                    "tech": signup_tech,
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    "ID": signup_id, 
+                    "PW": hashed_pw, 
+                    "COMPANY": signup_id,
+                    "LOCATION": signup_location,
+                    "INDUSTRY": signup_industry,
+                    "TECH": signup_tech,
+                    "CREATED_AT": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }])
                 
                 updated_df = pd.concat([users_df, new_user], ignore_index=True)
