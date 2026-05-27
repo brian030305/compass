@@ -564,40 +564,39 @@ if st.session_state.current_page == '대시보드':
 
             
             st.markdown("---")
-            st.markdown("### 🔑 계정 비밀번호 강제 변경")
-            
-            pw_col1, pw_col2 = st.columns([3, 1])
-            
-            with pw_col1:
-                # 비밀번호를 변경할 아이디 선택
-                pw_reset_options = ["계정을 선택해주세요"] + user_list
-                selected_pw_id = st.selectbox("비밀번호를 변경할 회원 ID를 선택하세요", pw_reset_options, key="admin_pw_select")
+            with st.form(key="admin_pw_form"):
+                st.markdown("### 🔑 계정 비밀번호 강제 변경")
                 
-                # 새 비밀번호 입력 (관리자가 지정)
-                admin_new_pw = st.text_input("새로운 비밀번호 입력", type="password", key="admin_new_pw")
+                pw_col1, pw_col2 = st.columns([3, 1])
                 
-            with pw_col2:
-                st.write("")
-                st.write("")
-                st.write("")
-                st.write("")
-                pw_change_btn = st.button("🔄 비밀번호 변경", use_container_width=True)
-                
-            if pw_change_btn:
-                if selected_pw_id == "계정을 선택해주세요":
-                    st.warning("⚠️ 비밀번호를 변경할 계정을 먼저 선택해 주세요.")
-                elif not admin_new_pw:
-                    st.warning("⚠️ 새로운 비밀번호를 입력해 주세요.")
-                else:
-                    with st.spinner(f"'{selected_pw_id}' 계정의 비밀번호를 변경하는 중..."):
-                        # 입력받은 새 비밀번호를 암호화(해싱) 처리
-                        new_hashed_pw = make_hashes(admin_new_pw)
-                        
-                        # DB 업데이트 함수 실행
-                        if admin_change_user_password(selected_pw_id, new_hashed_pw):
-                            st.success(f"🎉 '{selected_pw_id}' 계정의 비밀번호가 성공적으로 변경되었습니다.")
-                            # 변경 후 새로고침 대신 입력창 초기화를 위해 rerun
-                            st.rerun()
+                with pw_col1:
+                    # 비밀번호를 변경할 아이디 선택
+                    pw_reset_options = ["계정을 선택해주세요"] + user_list
+                    selected_pw_id = st.selectbox("비밀번호를 변경할 회원 ID를 선택하세요", pw_reset_options)
+                    
+                    # 새 비밀번호 입력 (관리자가 지정)
+                    admin_new_pw = st.text_input("새로운 비밀번호 입력", type="password")
+                    
+                with pw_col2:
+                    st.write("")
+                    st.write("")
+                    st.write("")
+                    st.write("")
+                    # 일반 버튼 대신 폼 전용 버튼(form_submit_button)을 사용합니다.
+                    pw_change_btn = st.form_submit_button("🔄 비밀번호 변경", use_container_width=True)
+                    
+                if pw_change_btn:
+                    if selected_pw_id == "계정을 선택해주세요":
+                        st.warning("⚠️ 비밀번호를 변경할 계정을 먼저 선택해 주세요.")
+                    elif not admin_new_pw:
+                        st.warning("⚠️ 새로운 비밀번호를 입력해 주세요.")
+                    else:
+                        with st.spinner(f"'{selected_pw_id}' 계정의 비밀번호를 변경하는 중..."):
+                            new_hashed_pw = make_hashes(admin_new_pw)
+                            
+                            if admin_change_user_password(selected_pw_id, new_hashed_pw):
+                                st.success(f"🎉 '{selected_pw_id}' 계정의 비밀번호가 성공적으로 변경되었습니다.")
+                                st.rerun()
             
     if st.session_state.show_chatbot:
         with ai_col:
