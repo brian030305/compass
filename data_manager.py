@@ -1,17 +1,19 @@
 import streamlit as st
 import oracledb
-import os
-import base64
-import zipfile
 
-# 함수 이름을 다시 get_oracle_engine으로 변경하여 app.py가 찾을 수 있게 합니다.
 @st.cache_resource
 def get_oracle_engine():
-    user = st.secrets["ORACLE_USER"]
-    password = st.secrets["ORACLE_PASSWORD"]
-    dsn = st.secrets["ORACLE_DSN"]
-    wallet_pass = st.secrets["WALLET_PASSWORD"]
-    wallet_b64 = st.secrets["WALLET_BASE64"]
+    # 깃허브에 올린 폴더명(wallet)을 경로로 직접 지정합니다.
+    wallet_dir = "./wallet" 
+    
+    return oracledb.connect(
+        user=st.secrets["ORACLE_USER"],
+        password=st.secrets["ORACLE_PASSWORD"],
+        dsn=st.secrets["ORACLE_DSN"],
+        config_dir=wallet_dir,
+        wallet_location=wallet_dir,
+        wallet_password=st.secrets["WALLET_PASSWORD"]
+    )
     
     wallet_dir = "/tmp/wallet"
     if not os.path.exists(wallet_dir):
