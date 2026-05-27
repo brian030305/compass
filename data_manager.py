@@ -2,8 +2,9 @@ import streamlit as st
 import oracledb
 import pandas as pd
 import requests
+from datetime import datetime
 
-# 1. 캐시 데드락을 방지하기 위해 @st.cache_resource를 제거하고 호출할 때마다 깨끗하게 연결합니다.
+# 🚨 지갑 파일 없이 시크릿 정보 3개만으로 연결합니다!
 def get_oracle_engine():
     return oracledb.connect(
         user=st.secrets["ORACLE_USER"],
@@ -117,30 +118,20 @@ def get_integrated_data():
         return integrated_df.fillna("") 
     return None
 
-# ==========================================
-# 📊 [수정됨] KEIT 사업공고 현황 (이제 오라클 DB에서 읽어옵니다)
-# ==========================================
 @st.cache_data(ttl=3600)
 def fetch_local_keit_announcement():
-    """한국산업기술기획평가원_사업공고 현황 데이터 로드 (로컬 CSV -> 오라클 연동)"""
     try:
         engine = get_oracle_engine()
-        # 오라클에 올린 'csv_data_tb' 테이블을 통째로 읽어옵니다.
         df = pd.read_sql("SELECT * FROM csv_data_tb", engine)
         return df
     except Exception as e:
         st.error(f"KEIT 사업공고 현황 오라클 DB 로드 실패: {e}")
         return pd.DataFrame()
 
-# ==========================================
-# 🌐 통계청 전국사업체조사 API
-# ==========================================
 @st.cache_data(ttl=86400) 
 def fetch_national_business_api():
-    """전국사업체조사 공공데이터 API 로드"""
     api_key = st.secrets.get("NATIONAL_BUSINESS_SURVEY_API_KEY", "")
     if not api_key:
-        st.warning("전국사업체조사 API 키가 설정되지 않았습니다.")
         return pd.DataFrame()
         
     url = "https://api.odcloud.kr/api/15087673/v1/uddi:32e6d6f0-6d01-4f62-b76e-b0ae5b840573" 
@@ -154,24 +145,16 @@ def fetch_national_business_api():
             if 'data' in data:
                 return pd.DataFrame(data['data'])
             else:
-                st.error(f"API 응답 구조 확인 필요: {data}")
                 return pd.DataFrame()
         else:
-            st.error(f"전국사업체조사 API 통신 에러: HTTP {response.status_code}")
             return pd.DataFrame()
     except Exception as e:
-        st.error(f"전국사업체조사 데이터 로드 실패: {e}")
         return pd.DataFrame()
 
-# ==========================================
-# 🌐 중소벤처기업부 기술개발제품 인증현황 API
-# ==========================================
 @st.cache_data(ttl=86400)
 def fetch_mss_tech_cert_api():
-    """기술개발제품 인증현황 공공데이터 API 로드"""
     api_key = st.secrets.get("MSS_TECH_CERT_API_KEY", "")
     if not api_key:
-        st.warning("기술개발제품 인증현황 API 키가 설정되지 않았습니다.")
         return pd.DataFrame()
         
     url = "https://api.odcloud.kr/api/3033913/v1/uddi:27bb6889-e56d-4cdc-a222-9f02900c81e7" 
@@ -185,19 +168,12 @@ def fetch_mss_tech_cert_api():
             if 'data' in data:
                 return pd.DataFrame(data['data'])
             else:
-                st.error(f"API 응답 구조 확인 필요: {data}")
                 return pd.DataFrame()
         else:
-            st.error(f"인증현황 API 통신 에러: HTTP {response.status_code}")
             return pd.DataFrame()
     except Exception as e:
-        st.error(f"인증현황 데이터 로드 실패: {e}")
         return pd.DataFrame()
 
-# ==========================================
-# 🌐 [수정됨] 기업마당 (Bizinfo) 데이터 로드 (이제 오라클 DB에서 읽어옵니다)
-# ==========================================
-#@st.cache_data(ttl=3600) 
 def fetch_bizinfo_api():
     try:
         engine = get_oracle_engine()
@@ -206,13 +182,19 @@ def fetch_bizinfo_api():
         if df.empty:
             return pd.DataFrame()
             
-        # 🚨 [대시보드 빈 화면 해결 코드] 
-        # 오라클이 대문자로 돌려준 컬럼명을 기존 대시보드 코드가 이해할 수 있는 단어들로 자동 번역해 줍니다.
+        # 🚨 [대시보드 빈 화면 해결 코드] 오라클 대문자 컬럼명을 원상 복구
         known_keys = ['pblancId', 'pblancNm', 'reqstEndDe', 'reqstBgnde', 'insttNm', 'bizId', 'entrprsStle', 'jrsdcAsct', 'exntcInsttNm', 'pblancUrl']
         mapping = {key.upper(): key for key in known_keys}
         df = df.rename(columns=lambda x: mapping.get(x.upper(), x))
         
-        # 💡 이제 아래의 기존 마감일 필터 및 데이터 가공 로직이 완벽하게 인식됩니다!
+        # 기존 마감일 필터 로직
         if 'reqstEndDe' in df.columns:
             df['마감일_계산용'] = pd.to_datetime(df['reqstEndDe'], errors='coerce')
-            today = pd.Timestamp(datetime.today().date())
+            today = pd.Timestamp(datetime.now().date())
+            valid_df = df[(df['마감일_계산용'] >= today) | (df['마감일_계산용'].isna())]
+            return valid_df.drop(columns=['마감일_계산용']).head(200).reset_index(drop=True)
+        return df.head(200)
+            
+    except Exception as e:
+        st.error(f"오라클 DB(기업마당) 읽기 실패: {e}")
+        return pd.DataFrame()
