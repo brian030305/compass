@@ -1,8 +1,10 @@
 import streamlit as st
 import oracledb
+import pandas as pd
+import requests
 
 @st.cache_resource
-def get_oracle_engine():
+def def get_oracle_engine():
     # 깃허브에 올린 폴더명(wallet)을 경로로 직접 지정합니다.
     wallet_dir = "./wallet" 
     
@@ -14,24 +16,6 @@ def get_oracle_engine():
         wallet_location=wallet_dir,
         wallet_password=st.secrets["WALLET_PASSWORD"]
     )
-    
-    wallet_dir = "/tmp/wallet"
-    if not os.path.exists(wallet_dir):
-        os.makedirs(wallet_dir)
-        with open(f"{wallet_dir}/wallet.zip", "wb") as f:
-            f.write(base64.b64decode(wallet_b64))
-        with zipfile.ZipFile(f"{wallet_dir}/wallet.zip", 'r') as zip_ref:
-            zip_ref.extractall(wallet_dir)
-            
-    return oracledb.connect(
-        user=user,
-        password=password,
-        dsn=dsn,
-        config_dir=wallet_dir,
-        wallet_location=wallet_dir,
-        wallet_password=wallet_pass
-    )
-
 
 def fetch_safety_cert_data():
     url = "https://api.odcloud.kr/api/15040703/v1/uddi:9bbbc4ab-d825-401f-b7c2-ff065808acec"
