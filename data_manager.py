@@ -4,6 +4,8 @@ import pandas as pd
 import requests
 from datetime import datetime
 
+oracledb.defaults.fetch_lobs = False
+
 # 🚨 지갑 파일 없이 시크릿 정보 3개만으로 연결합니다!
 def get_oracle_engine():
     return oracledb.connect(
