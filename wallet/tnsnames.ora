@@ -1,0 +1,12 @@
+compassdb_high = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-chuncheon-1.oraclecloud.com))(connect_data=(service_name=g230cebf550460a_compassdb_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+compassdb_medium = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-chuncheon-1.oraclecloud.com))(connect_data=(service_name=g230cebf550460a_compassdb_medium.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+compassdb_low = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-chuncheon-1.oraclecloud.com))(connect_data=(service_name=g230cebf550460a_compassdb_low.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+compassdb_tp = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-chuncheon-1.oraclecloud.com))(connect_data=(service_name=g230cebf550460a_compassdb_tp.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+compassdb_tpurgent = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-chuncheon-1.oraclecloud.com))(connect_data=(service_name=g230cebf550460a_compassdb_tpurgent.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+
+
