@@ -81,10 +81,10 @@ if not st.session_state.logged_in:
                     st.session_state.logged_in = True
                     st.session_state.user_id = login_id
                     
-                    st.session_state.company_name = str(users_df.at[user_idx, 'company'])
-                    st.session_state.location = str(users_df.at[user_idx, 'location'])
-                    st.session_state.industry = str(users_df.at[user_idx, 'industry'])
-                    st.session_state.tech_field = str(users_df.at[user_idx, 'tech'])
+                    st.session_state.company_name = str(users_df.at[user_idx, 'COMPANY'])
+                    st.session_state.location = str(users_df.at[user_idx, 'LOCATION'])
+                    st.session_state.industry = str(users_df.at[user_idx, 'INDUSTRY'])
+                    st.session_state.tech_field = str(users_df.at[user_idx, 'TECH'])
                     
                     st.rerun()
                     
