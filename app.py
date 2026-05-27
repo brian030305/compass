@@ -60,7 +60,7 @@ if not st.session_state.logged_in:
     tab1, tab2 = st.tabs(["로그인", "회원가입"])
     
     # 🎯 오라클 DB에서 'users_tb'의 데이터를 불러옵니다.
-    engine = get_oracle_engine()
+    conn = get_oracle_engine()
     users_df = pd.read_sql("SELECT * FROM users_tb", conn)
     conn.close()
     
