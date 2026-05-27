@@ -199,11 +199,11 @@ def get_ai_classified_data():
 
 
 # ==========================================
-# 🎯 기업 정보 수정 팝업창 함수
+# 🎯 기업 정보 및 비밀번호 수정 팝업창 함수
 # ==========================================
 @st.dialog("⚙️ 기업 정보 수정")
 def edit_company_profile():
-    st.write("변경하실 정보를 입력해 주세요. 저장 시 대시보드 데이터가 실시간으로 변경됩니다.")
+    st.write("변경하실 정보를 입력해 주세요. (비밀번호를 변경하지 않으려면 비워두세요.)")
     
     current_company = st.session_state.get('company_name', '테크스타트업(주)')
     current_industry = st.session_state.get('industry', '선택해주세요')
@@ -224,9 +224,21 @@ def edit_company_profile():
         tech_field_input = st.text_input("필요한 기술 분야 키워드", value=current_tech, placeholder="예: 드론, 인공지능")
         
         st.markdown("---")
+        st.markdown("🔒 **비밀번호 변경 (선택사항)**")
+        new_pw = st.text_input("새 비밀번호", type="password", placeholder="변경을 원치 않으시면 비워두세요")
+        new_pw_check = st.text_input("새 비밀번호 확인", type="password", placeholder="새 비밀번호를 다시 입력하세요")
+        
+        st.markdown("---")
         submit_btn = st.form_submit_button("💾 변경사항 저장 및 실시간 반영", type="primary", use_container_width=True)
         
     if submit_btn:
+        # 🚨 [검증 1] 비밀번호 칸을 하나라도 건드렸는데, 두 개가 다르면 에러 출력 후 중단!
+        if new_pw or new_pw_check:
+            if new_pw != new_pw_check:
+                st.error("새 비밀번호와 비밀번호 확인이 일치하지 않습니다. 다시 확인해 주세요.")
+                return # 함수를 여기서 끝내서 DB 저장을 막습니다.
+                
+        # 기본 정보 세션 저장
         st.session_state.company_name = company_input
         st.session_state.industry = industry_input
         st.session_state.tech_field = tech_field_input
@@ -239,30 +251,38 @@ def edit_company_profile():
         
         with st.spinner("변경 사항을 오라클 클라우드 DB에 영구 저장 중입니다..."):
             try:
-                engine = get_oracle_engine() # 👈 읽어올 때는 원래 엔진
+                engine = get_oracle_engine() 
                 users_df = pd.read_sql("SELECT * FROM users_tb", engine).fillna("")
                 
-                # 🚨 알케미가 마음대로 바꾼 소문자를 다시 대문자로 강제 복구 (KeyError 완벽 방지)
+                # 알케미가 마음대로 바꾼 소문자를 다시 대문자로 강제 복구
                 users_df.columns = users_df.columns.str.upper()
                 
                 mask = users_df['ID'].astype(str) == st.session_state.user_id
                 if mask.any():
+                    # 1. 기업 정보 업데이트
                     users_df.loc[mask, 'COMPANY'] = company_input
                     users_df.loc[mask, 'LOCATION'] = location_input
                     users_df.loc[mask, 'INDUSTRY'] = industry_input
                     users_df.loc[mask, 'TECH'] = tech_field_input
                     
-                    save_engine = get_sqlalchemy_engine() # 👈 저장할 때는 알케미 엔진
+                    # 2. 비밀번호를 새로 입력했고, 서로 일치한다면 해싱해서 업데이트!
+                    if new_pw and new_pw == new_pw_check:
+                        hashed_pw = make_hashes(new_pw) # 기존에 만들어두신 암호화 함수 사용
+                        users_df.loc[mask, 'PW'] = hashed_pw
+                    
+                    # 알케미 엔진으로 DB에 최종 덮어쓰기
+                    save_engine = get_sqlalchemy_engine() 
                     users_df.to_sql('users_tb', save_engine, if_exists='replace', index=False)
             except Exception as e:
                 st.error(f"오라클 클라우드 DB 업데이트 중 오류 발생: {e}")
+                return
         
         st.session_state.dashboard_metrics = None 
         st.session_state.survival_report = None
         if "chat_session" in st.session_state:
             del st.session_state.chat_session
             
-        st.success("기업 정보가 성공적으로 변경 및 저장되었습니다!")
+        st.success("기업 정보 및 비밀번호가 성공적으로 변경되었습니다!")
         st.rerun()
 
 # 2. 사이드바 메뉴
