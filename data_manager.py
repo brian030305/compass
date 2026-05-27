@@ -3,20 +3,23 @@ import oracledb
 import pandas as pd
 import requests
 from datetime import datetime
-from sqlalchemy import create_engine # 👈 [추가됨] 판다스 저장용 번역기
+from sqlalchemy import create_engine
 
+# LOB 데이터(긴 텍스트) 끊김 방지 설정
 oracledb.defaults.fetch_lobs = False
 
-# 👇 기존 함수를 통째로 지우고 아래 코드로 교체해 주세요!
+# 1. 읽기 전용 엔진 (오라클 다이렉트 - 대문자 컬럼명 유지)
 def get_oracle_engine():
-    # 1. 오라클과 다이렉트로 연결하는 핵심 로직
+    return oracledb.connect(
+        user=st.secrets["ORACLE_USER"],
+        password=st.secrets["ORACLE_PASSWORD"],
+        dsn=st.secrets["ORACLE_DSN"]
+    )
+
+# 2. 쓰기(저장) 전용 엔진 (판다스 to_sql 에러 방지용)
+def get_sqlalchemy_engine():
     def creator():
-        return oracledb.connect(
-            user=st.secrets["ORACLE_USER"],
-            password=st.secrets["ORACLE_PASSWORD"],
-            dsn=st.secrets["ORACLE_DSN"]
-        )
-    # 2. 판다스가 좋아하는 형태로 포장해서 반환
+        return get_oracle_engine()
     return create_engine("oracle+oracledb://", creator=creator)
 
 def fetch_safety_cert_data():
@@ -28,10 +31,8 @@ def fetch_safety_cert_data():
         if response.status_code == 200:
             df = pd.DataFrame(response.json()['data'])
             return df.rename(columns={'제품명': '사업/공고/제품명', '제조사명': '관련기관/제조사'})
-        else:
-            st.warning(f"국가기술표준원 거절됨 (코드: {response.status_code})")
-    except Exception as e:
-        st.error(f"국가기술표준원 에러: {e}")
+    except Exception:
+        pass
     return pd.DataFrame()
 
 def fetch_mss_data():
@@ -43,10 +44,8 @@ def fetch_mss_data():
         if response.status_code == 200:
             df = pd.DataFrame(response.json()['data'])
             return df.rename(columns={'사업명': '사업/공고/제품명', '소관기관': '관련기관/제조사'})
-        else:
-            st.warning(f"중기부 거절됨 (코드: {response.status_code})")
-    except Exception as e:
-        st.error(f"중기부 에러: {e}")
+    except Exception:
+        pass
     return pd.DataFrame()
 
 def fetch_ktl_data():
@@ -58,10 +57,8 @@ def fetch_ktl_data():
         if response.status_code == 200:
             df = pd.DataFrame(response.json()['data'])
             return df.rename(columns={'업체기본주소': '사업/공고/제품명', '접수수량': '관련기관/제조사'})
-        else:
-            st.warning(f"KTL 거절됨 (코드: {response.status_code})")
-    except Exception as e:
-        st.error(f"KTL 에러: {e}")
+    except Exception:
+        pass
     return pd.DataFrame()
 
 def fetch_kiat_data():
@@ -73,10 +70,8 @@ def fetch_kiat_data():
         if response.status_code == 200:
             df = pd.DataFrame(response.json()['data'])
             return df.rename(columns={'지원시책명': '사업/공고/제품명', '지원기관명': '관련기관/제조사'})
-        else:
-            st.warning(f"KIAT 거절됨 (코드: {response.status_code})")
-    except Exception as e:
-        st.error(f"KIAT 에러: {e}")
+    except Exception:
+        pass
     return pd.DataFrame()
 
 def fetch_keit_min_data():
@@ -88,10 +83,8 @@ def fetch_keit_min_data():
         if response.status_code == 200:
             df = pd.DataFrame(response.json()['data'])
             return df.rename(columns={'부처': '관련기관/제조사', '2024년_사업수': '사업/공고/제품명'}) 
-        else:
-            st.warning(f"KEIT 부처별 거절됨 (코드: {response.status_code})")
-    except Exception as e:
-        st.error(f"KEIT 부처별 에러: {e}")
+    except Exception:
+        pass
     return pd.DataFrame()
 
 def fetch_keit_rd_data():
@@ -103,10 +96,8 @@ def fetch_keit_rd_data():
         if response.status_code == 200:
             df = pd.DataFrame(response.json()['data'])
             return df.rename(columns={'사업명': '사업/공고/제품명'})
-        else:
-            st.warning(f"KEIT R&D 거절됨 (코드: {response.status_code})")
-    except Exception as e:
-        st.error(f"KEIT R&D 에러: {e}")
+    except Exception:
+        pass
     return pd.DataFrame()
 
 def get_integrated_data():
@@ -132,14 +123,12 @@ def fetch_local_keit_announcement():
         df = pd.read_sql("SELECT * FROM csv_data_tb", engine)
         return df
     except Exception as e:
-        st.error(f"KEIT 사업공고 현황 오라클 DB 로드 실패: {e}")
         return pd.DataFrame()
 
 @st.cache_data(ttl=86400) 
 def fetch_national_business_api():
     api_key = st.secrets.get("NATIONAL_BUSINESS_SURVEY_API_KEY", "")
-    if not api_key:
-        return pd.DataFrame()
+    if not api_key: return pd.DataFrame()
         
     url = "https://api.odcloud.kr/api/15087673/v1/uddi:32e6d6f0-6d01-4f62-b76e-b0ae5b840573" 
     headers = {'Authorization': f'Infuser {api_key}'}
@@ -149,20 +138,15 @@ def fetch_national_business_api():
         response = requests.get(url, headers=headers, params=params, timeout=15)
         if response.status_code == 200:
             data = response.json()
-            if 'data' in data:
-                return pd.DataFrame(data['data'])
-            else:
-                return pd.DataFrame()
-        else:
-            return pd.DataFrame()
-    except Exception as e:
-        return pd.DataFrame()
+            if 'data' in data: return pd.DataFrame(data['data'])
+    except Exception:
+        pass
+    return pd.DataFrame()
 
 @st.cache_data(ttl=86400)
 def fetch_mss_tech_cert_api():
     api_key = st.secrets.get("MSS_TECH_CERT_API_KEY", "")
-    if not api_key:
-        return pd.DataFrame()
+    if not api_key: return pd.DataFrame()
         
     url = "https://api.odcloud.kr/api/3033913/v1/uddi:27bb6889-e56d-4cdc-a222-9f02900c81e7" 
     headers = {'Authorization': f'Infuser {api_key}'}
@@ -172,22 +156,17 @@ def fetch_mss_tech_cert_api():
         response = requests.get(url, headers=headers, params=params, timeout=15)
         if response.status_code == 200:
             data = response.json()
-            if 'data' in data:
-                return pd.DataFrame(data['data'])
-            else:
-                return pd.DataFrame()
-        else:
-            return pd.DataFrame()
-    except Exception as e:
-        return pd.DataFrame()
+            if 'data' in data: return pd.DataFrame(data['data'])
+    except Exception:
+        pass
+    return pd.DataFrame()
 
 def fetch_bizinfo_api():
     try:
         engine = get_oracle_engine()
         df = pd.read_sql("SELECT * FROM bizinfo_tb FETCH FIRST 500 ROWS ONLY", engine)
         
-        if df.empty:
-            return pd.DataFrame()
+        if df.empty: return pd.DataFrame()
             
         # 🚨 [대시보드 빈 화면 해결 코드] 오라클 대문자 컬럼명을 원상 복구
         known_keys = ['pblancId', 'pblancNm', 'reqstEndDe', 'reqstBgnde', 'insttNm', 'bizId', 'entrprsStle', 'jrsdcAsct', 'exntcInsttNm', 'pblancUrl']
