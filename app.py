@@ -4,6 +4,7 @@ import pandas as pd
 import google.generativeai as genai
 import io
 import re
+import time
 import hashlib
 from docx import Document
 from data_manager import get_oracle_engine, get_sqlalchemy_engine, admin_fetch_all_users, admin_delete_user, admin_change_user_password
@@ -596,6 +597,7 @@ if st.session_state.current_page == '대시보드':
                             
                             if admin_change_user_password(selected_pw_id, new_hashed_pw):
                                 st.success(f"🎉 '{selected_pw_id}' 계정의 비밀번호가 성공적으로 변경되었습니다.")
+                                time.sleep(1.5)
                                 st.rerun()
             
     if st.session_state.show_chatbot:
