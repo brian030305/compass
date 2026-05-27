@@ -135,7 +135,7 @@ if not st.session_state.logged_in:
                 st.warning("아이디(기업명)와 비밀번호는 필수 입력 사항입니다.")
             elif signup_pw != signup_pw_check:
                 st.warning("비밀번호가 일치하지 않습니다.")
-            elif signup_id in users_df['id'].astype(str).values:
+            elif signup_id in users_df['ID'].astype(str).values:
                 st.error("이미 존재하는 아이디(기업명)입니다. 다른 이름을 사용해주세요.")
             else:
                 hashed_pw = make_hashes(signup_pw)
