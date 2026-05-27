@@ -7,3 +7,4 @@ google-generativeai
 python-docx
 streamlit-calendar
 SQLAlchemy
+requests
