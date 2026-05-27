@@ -541,18 +541,24 @@ if st.session_state.current_page == '대시보드':
                     if 'admin' in user_list:
                         user_list.remove('admin')
                         
-                    selected_delete_id = st.selectbox("삭제할 회원 ID를 선택하세요", user_list, key="admin_delete_select")
+                    # 👇 [수정] 리스트 맨 앞에 안내 문구를 추가합니다.
+                    delete_options = ["계정을 선택해주세요"] + user_list
+                    selected_delete_id = st.selectbox("삭제할 회원 ID를 선택하세요", delete_options, key="admin_delete_select")
                     
                 with col2:
                     st.write("") 
                     st.write("") 
                     delete_confirm_btn = st.button("❌ 계정 삭제", type="primary", use_container_width=True)
                     
+                # 👇 [수정] 버튼을 눌렀을 때 안내 문구 상태면 삭제를 막는 조건을 추가합니다.
                 if delete_confirm_btn and selected_delete_id:
-                    with st.spinner(f"'{selected_delete_id}' 계정을 삭제하는 중..."):
-                        if admin_delete_user(selected_delete_id):
-                            st.success(f"🎉 '{selected_delete_id}' 계정이 성공적으로 삭제되었습니다.")
-                            st.rerun() 
+                    if selected_delete_id == "계정을 선택해주세요":
+                        st.warning("⚠️ 삭제할 계정을 먼저 선택해 주세요.")
+                    else:
+                        with st.spinner(f"'{selected_delete_id}' 계정을 삭제하는 중..."):
+                            if admin_delete_user(selected_delete_id):
+                                st.success(f"🎉 '{selected_delete_id}' 계정이 성공적으로 삭제되었습니다.")
+                                st.rerun()
             else:
                 st.info("현재 가입된 일반 회원 계정이 없습니다.")
             
