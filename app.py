@@ -1131,43 +1131,101 @@ elif st.session_state.current_page == '지원 캘린더':
 
 # ------- AI 창업 컨설팅 설정 -----------
 elif st.session_state.current_page == 'AI 창업 컨설팅':
-    st.header("💡 AI 맞춤형 사업계획서(BM) 객관적 진단")
-    st.caption("구상 중인 창업 아이템이나 작성 중인 사업계획서의 핵심 내용을 입력하시면, 현직 심사역의 관점에서 날카로운 약점 진단과 보완 전략을 제시해 드립니다.")
+    st.header("💡 AI 창업 컨설팅 및 사업계획서 진단")
+    st.caption("사업계획서 약점 진단부터 창업 전반에 대한 자유로운 질문까지, 실시간 공공데이터를 기반으로 답변해 드립니다.")
     
-    # 사용자로부터 사업 아이템 설명을 입력받습니다.
-    user_item_desc = st.text_area(
-        "사업 아이템 및 비즈니스 모델(BM) 요약", 
-        height=150, 
-        placeholder="예: AI 기반 맞춤형 건강 영양제 구독 서비스. 고객의 건강검진 데이터를 연동하여 매월 필요한 영양제를 배송해주는 모델입니다. 현재 프로토타입 개발 중입니다."
+    # 1. 사용자가 원하는 컨설팅 모드를 선택할 수 있도록 라디오 버튼 추가
+    consulting_mode = st.radio(
+        "어떤 형태의 컨설팅을 원하시나요?",
+        ["📝 사업 아이템(BM) 약점 진단", "💬 창업 일반/자유 질문 (세무, 법무, 마케팅 등)"],
+        horizontal=True
     )
     
-    if st.button("🔍 내 사업계획서 진단 및 컨설팅 리포트 생성", type="primary"):
-        if user_item_desc.strip() == "":
-            st.warning("진단을 위해 사업 아이템 설명을 입력해 주세요.")
+    # 2. 선택한 모드에 따라 입력창과 버튼 이름 변경
+    if consulting_mode == "📝 사업 아이템(BM) 약점 진단":
+        input_label = "사업 아이템 및 비즈니스 모델(BM) 요약"
+        placeholder_text = "예: AI 기반 맞춤형 건강 영양제 구독 서비스. 고객의 건강검진 데이터를 연동하여..."
+        button_text = "🔍 사업계획서 진단 리포트 생성"
+    else:
+        input_label = "창업 관련 자유 질문 입력"
+        placeholder_text = "예: 공동창업자 3명과 지분을 어떻게 나누는 것이 좋을까요? / 초기 스타트업 마케팅 비용은 보통 어떻게 잡나요?"
+        button_text = "💡 전문가의 답변 받기"
+        
+    user_input = st.text_area(input_label, height=150, placeholder=placeholder_text)
+    
+    if st.button(button_text, type="primary"):
+        if user_input.strip() == "":
+            st.warning("내용을 입력해 주세요.")
         else:
-            with st.spinner("AI 창업 심사역이 귀사의 비즈니스 모델을 다각도로 정밀 분석하고 있습니다... (약 10초 소요)"):
+            with st.spinner("실시간 공공데이터를 수집하고, AI 창업 전문가가 분석을 진행 중입니다... (약 10~15초 소요)"):
                 
-                consulting_prompt = f"""
-                당신은 수많은 스타트업을 성공으로 이끈 대한민국 최고의 창업 컨설턴트이자 정부지원사업(K-Startup, 과기부 R&D 등) 전문 심사역입니다.
-                아래 사용자의 사업 아이템을 분석하고, 객관적이고 날카로운 진단을 내려주세요. 모호한 칭찬보다는 실제 합격과 생존에 도움이 되는 실질적인 조언이 필요합니다.
-
-                [사용자 사업 아이템 요약]
-                {user_item_desc}
-
-                [컨설팅 리포트 필수 포함 내용]
-                1. 🎯 사업성 진단 (Strengths): 이 아이템의 시장성과 긍정적인 요소
-                2. ⚠️ 치명적인 약점 및 리스크 (Weaknesses): 심사위원들이 공격할 만한 빈틈 (예: 수익모델 부재, 기술 진입장벽 부족, 규제 문제 등)
-                3. 🛠️ 합격을 위한 방어 전략 (Solutions): 위 약점을 사업계획서 상에서 어떻게 포장하고 보완해야 하는지 구체적인 논리 제시
-                4. 🚀 추천 지원사업 포지셔닝: 아이템 성격상 R&D(기술고도화), K-Startup(사업화 자금), 융자형 중 어떤 공고를 타겟팅하는 것이 유리한지 조언
+                # ==========================================
+                # 💡 [핵심] 1. 백그라운드에서 실시간 공공데이터 수집
+                # ==========================================
+                api_functions = [
+                    fetch_bizinfo_api, 
+                    fetch_kstartup_data, 
+                    fetch_msit_rd_data
+                ]
                 
-                결과는 가독성 좋게 마크다운 문법을 사용하여 깔끔하게 정리해 주세요.
-                """
+                live_notices = []
+                for func in api_functions:
+                    try:
+                        temp_df = func()
+                        if not temp_df.empty:
+                            if 'pblancNm' in temp_df.columns:
+                                temp_df = temp_df.rename(columns={'pblancNm': '사업명', 'pancInsttNm': '소관기관'})
+                            if '사업명' in temp_df.columns:
+                                # 각 기관별 최신 공고를 10개씩만 추출 (AI 토큰 과부하 방지)
+                                for _, row in temp_df.head(10).iterrows():
+                                    agency = row.get('소관기관', '미상')
+                                    title = row['사업명']
+                                    live_notices.append(f"[{agency}] {title}")
+                    except Exception:
+                        pass
+                
+                # 수집된 공고들을 하나의 문자열로 묶습니다.
+                live_notices_str = "\n".join(live_notices) if live_notices else "현재 조회된 실시간 공고가 없습니다."
+
+                # ==========================================
+                # 💡 2. AI 프롬프트에 공공데이터 주입
+                # ==========================================
+                if consulting_mode == "📝 사업 아이템(BM) 약점 진단":
+                    consulting_prompt = f"""
+                    당신은 대한민국 최고의 창업 컨설턴트입니다. 
+                    아래 [현재 접수 중인 정부지원사업 공공데이터]와 [사용자 사업 아이템]을 분석하여 객관적인 진단을 내려주세요.
+                    
+                    [현재 접수 중인 정부지원사업 공공데이터 (실시간)]
+                    {live_notices_str}
+                    
+                    [사용자 사업 아이템 요약]
+                    {user_input}
+
+                    [컨설팅 리포트 필수 포함 내용]
+                    1. 🎯 사업성 진단 (Strengths): 시장성과 긍정적인 요소
+                    2. ⚠️ 치명적인 약점 및 리스크 (Weaknesses): 심사위원들이 공격할 만한 빈틈
+                    3. 🛠️ 합격을 위한 방어 전략 (Solutions): 약점 보완 논리
+                    4. 🚀 [필수] 실시간 맞춤형 공고 추천: 위 [현재 접수 중인 정부지원사업 공공데이터] 리스트 중에서 이 기업의 약점을 보완하거나 성장에 가장 적합 공고를 1~2개 직접 지목하고, 그 이유를 설명해 주세요. (반드시 위 리스트에 있는 실제 공공데이터만 추천할 것)
+                    """
+                else:
+                    consulting_prompt = f"""
+                    당신은 스타트업 대표들을 돕는 통합 창업 컨설턴트입니다.
+                    아래 [현재 접수 중인 공공데이터]와 [창업자 질문]을 연관 지어, 실무적이고 전문적인 조언을 제공하십시오.
+
+                    [현재 접수 중인 정부지원사업 공공데이터 (실시간)]
+                    {live_notices_str}
+
+                    [창업자 질문]
+                    {user_input}
+                    
+                    답변 작성 시, 세무/법률/마케팅 등 실무적인 조언을 주되, 자금이 필요할 법한 부분에서는 위 [현재 접수 중인 공공데이터] 리스트를 참고하여 "현재 이러한 공고가 열려있으니 활용해 보라"는 식의 공공데이터 연계 팁을 반드시 포함해 주세요.
+                    """
                 
                 try:
                     consulting_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
                     consulting_response = consulting_model.generate_content(consulting_prompt)
                     
-                    st.success("✅ AI 진단 및 컨설팅 리포트가 완성되었습니다!")
+                    st.success("✅ 실시간 공공데이터 기반 AI 컨설팅 결과가 도착했습니다!")
                     
                     with st.container():
                         st.markdown(
@@ -1179,14 +1237,13 @@ elif st.session_state.current_page == 'AI 창업 컨설팅':
                             unsafe_allow_html=True
                         )
                         
-                    # 워드 다운로드 기능
                     clean_text = consulting_response.text
                     clean_text = re.sub(r'\*+', '', clean_text)  
                     clean_text = re.sub(r'#+\s*', '', clean_text) 
                     clean_text = re.sub(r'`+', '', clean_text)    
                     
                     doc = Document()
-                    doc.add_heading("AI 창업 컨설팅 진단 리포트", 0)
+                    doc.add_heading("AI 창업 컨설팅 리포트", 0)
                     doc.add_paragraph(clean_text)
                     
                     bio = io.BytesIO()
@@ -1196,11 +1253,12 @@ elif st.session_state.current_page == 'AI 창업 컨설팅':
                     st.divider()
                     
                     st.download_button(
-                        label="📥 컨설팅 리포트 Word 파일로 다운로드",
+                        label="📥 결과 Word 파일로 다운로드",
                         data=bio.getvalue(),
-                        file_name="AI_창업_컨설팅_진단_리포트.docx",
+                        file_name="AI_창업_컨설팅_결과.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     )
+                    
                 except Exception as e:
                     st.error(f"컨설팅 리포트 생성 중 오류가 발생했습니다: {e}")
 
