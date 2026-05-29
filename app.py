@@ -738,7 +738,7 @@ elif st.session_state.current_page == 'AI 어시스턴트':
         if message.role == "user" or (message.role == "model" and message.parts[0].text):
             with st.chat_message(message.role):
                 st.markdown(message.parts[0].text)
-    user_input = st.chat_input("궁금한 공공데이터에 대해 물어보세요!")
+    user_input = st.chat_input("지원사업 검색은 물론, 세무/마케팅 등 창업 관련 무엇이든 자유롭게 물어보세요!")
     if user_input:
         with st.chat_message("user"): st.markdown(user_input)
         with st.chat_message("model"):
