@@ -101,22 +101,6 @@ def fetch_keit_rd_data():
         pass
     return pd.DataFrame()
 
-def get_integrated_data():
-    df_safety = fetch_safety_cert_data()
-    df_mss = fetch_mss_data()
-    df_ktl = fetch_ktl_data()
-    df_kiat = fetch_kiat_data()
-    df_keit_min = fetch_keit_min_data()
-    df_keit_rd = fetch_keit_rd_data()
-    
-    all_dfs = [df_safety, df_mss, df_ktl, df_kiat, df_keit_min, df_keit_rd]
-    valid_dfs = [d for d in all_dfs if not d.empty]
-    
-    if valid_dfs:
-        integrated_df = pd.concat(valid_dfs, ignore_index=True)
-        return integrated_df.fillna("") 
-    return None
-
 @st.cache_data(ttl=3600)
 def fetch_local_keit_announcement():
     try:
@@ -298,10 +282,6 @@ def fetch_msit_rd_data():
             
             if items:
                 df = pd.DataFrame(items)
-                
-                # 🚨 디버깅: 터미널에 원본 컬럼명을 출력하여 구조를 확인합니다.
-                print("===== [과기부 API 실제 컬럼명] =====")
-                print(df.columns.tolist())
                 
                 # API 명세에 맞춰 컬럼명을 '사업명'으로 변경 (자주 쓰이는 키값 우선 매핑)
                 rename_dict = {}
