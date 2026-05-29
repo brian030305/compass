@@ -227,70 +227,75 @@ def admin_change_user_password(user_id, hashed_pw):
         return False
 
 def fetch_kstartup_data():
-    """K-Startup 창업지원사업 API (에러 추적용 디버깅 코드)"""
+    """K-Startup 창업지원사업 API (웹 화면 직접 출력 디버깅 모드)"""
     url = "https://apis.data.go.kr/B552735/kisedKstartupService01/getAnnouncementInformation01"
+    
+    # st.secrets에서 키 불러오기
     service_key = st.secrets["KSTARTUP_API_KEY"]
     
     params = {
         'serviceKey': service_key,
         'pageNo': 1,
         'numOfRows': 100,
-        'returnType': 'JSON',
-        'dataType': 'JSON'
+        'returnType': 'JSON'
     }
     
     try:
         response = requests.get(url, params=params, timeout=10)
         
-        # 🚨 K-Startup 서버가 도대체 무슨 답변을 주고 있는지 무조건 터미널에 출력합니다.
-        print("===== [API 서버 원본 응답] =====")
-        print("상태 코드:", response.status_code)
-        print("내용:", response.text[:500])
-        print("================================")
-        
-        if response.status_code == 200:
-            try:
-                result = response.json()
-            except Exception as e:
-                print("JSON 변환 실패 (서버가 에러 메시지를 보냈습니다):", e)
-                return pd.DataFrame()
+        # 🚨 [디버깅 1] HTTP 상태 코드가 200(정상)이 아닐 경우 화면에 에러 원문 띄우기
+        if response.status_code != 200:
+            st.error(f"⚠️ K-Startup 서버 접근 실패 (코드: {response.status_code})")
+            st.code(response.text) # 에러 원문을 화면에 출력
+            return pd.DataFrame()
             
-            items = []
-            if "response" in result and "body" in result["response"] and "items" in result["response"]["body"]:
-                items_data = result["response"]["body"]["items"]
-                if isinstance(items_data, dict) and "item" in items_data:
-                    items = items_data["item"]
-                elif isinstance(items_data, list):
-                    items = items_data
-            elif "data" in result:
-                items = result["data"]
+        # 🚨 [디버깅 2] 서버 응답이 JSON이 아닐 경우(보통 공공데이터 포털 키 인증 에러 시 발생) 화면에 띄우기
+        try:
+            result = response.json()
+        except Exception as e:
+            st.error("⚠️ K-Startup API가 정상적인 JSON 데이터가 아닌 에러 메시지를 보냈습니다.")
+            st.info("아래의 서버 응답 원문을 확인해 주세요. (인증키 미등록, 트래픽 초과 등)")
+            st.code(response.text[:1000]) 
+            return pd.DataFrame()
+            
+        # 정상적으로 JSON 변환이 되었다면 데이터 추출 시작
+        items = []
+        if "response" in result and "body" in result["response"] and "items" in result["response"]["body"]:
+            items_data = result["response"]["body"]["items"]
+            if isinstance(items_data, dict) and "item" in items_data:
+                items = items_data["item"]
+            elif isinstance(items_data, list):
+                items = items_data
+        elif "data" in result:
+            items = result["data"]
+            
+        if items:
+            df = pd.DataFrame(items)
+            
+            rename_dict = {}
+            if 'postsnNm' in df.columns: rename_dict['postsnNm'] = '사업명'
+            elif 'pbancNm' in df.columns: rename_dict['pbancNm'] = '사업명'
+            elif 'title' in df.columns: rename_dict['title'] = '사업명'
+            
+            if 'bizPrchDprtNm' in df.columns: rename_dict['bizPrchDprtNm'] = '소관기관'
+            elif 'pancInsttNm' in df.columns: rename_dict['pancInsttNm'] = '소관기관'
+            
+            if 'rcptBgngDt' in df.columns: rename_dict['rcptBgngDt'] = '접수시작일'
+            elif 'pbancRcptBgngDt' in df.columns: rename_dict['pbancRcptBgngDt'] = '접수시작일'
+            
+            if 'rcptEndDt' in df.columns: rename_dict['rcptEndDt'] = '마감일'
+            elif 'pbancRcptEndDt' in df.columns: rename_dict['pbancRcptEndDt'] = '마감일'
+            
+            if 'dtlPgUrl' in df.columns: rename_dict['dtlPgUrl'] = '상세링크'
+            elif 'pblancUrl' in df.columns: rename_dict['pblancUrl'] = '상세링크'
+            
+            if rename_dict:
+                df = df.rename(columns=rename_dict)
                 
-            if items:
-                df = pd.DataFrame(items)
-                
-                rename_dict = {}
-                if 'postsnNm' in df.columns: rename_dict['postsnNm'] = '사업명'
-                elif 'pbancNm' in df.columns: rename_dict['pbancNm'] = '사업명'
-                elif 'title' in df.columns: rename_dict['title'] = '사업명'
-                
-                if 'bizPrchDprtNm' in df.columns: rename_dict['bizPrchDprtNm'] = '소관기관'
-                elif 'pancInsttNm' in df.columns: rename_dict['pancInsttNm'] = '소관기관'
-                
-                if 'rcptBgngDt' in df.columns: rename_dict['rcptBgngDt'] = '접수시작일'
-                elif 'pbancRcptBgngDt' in df.columns: rename_dict['pbancRcptBgngDt'] = '접수시작일'
-                
-                if 'rcptEndDt' in df.columns: rename_dict['rcptEndDt'] = '마감일'
-                elif 'pbancRcptEndDt' in df.columns: rename_dict['pbancRcptEndDt'] = '마감일'
-                
-                if 'dtlPgUrl' in df.columns: rename_dict['dtlPgUrl'] = '상세링크'
-                elif 'pblancUrl' in df.columns: rename_dict['pblancUrl'] = '상세링크'
-                
-                if rename_dict:
-                    df = df.rename(columns=rename_dict)
-                    
-                return df
-                
+            return df
+            
         return pd.DataFrame()
+        
     except Exception as e:
-        print(f"K-Startup 데이터 로드 실패: {e}")
+        st.error(f"⚠️ K-Startup 파이썬 실행 에러: {str(e)}")
         return pd.DataFrame()
