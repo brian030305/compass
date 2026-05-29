@@ -1228,14 +1228,7 @@ elif st.session_state.current_page == 'AI 창업 컨설팅':
                     st.success("✅ 실시간 공공데이터 기반 AI 컨설팅 결과가 도착했습니다!")
                     
                     with st.container():
-                        st.markdown(
-                            f"""
-                            <div style="background-color:#f8f9fa; padding:20px; border-radius:10px; border-left: 5px solid #0056b3; margin-top:10px; color:#333333;">
-                                {consulting_response.text}
-                            </div>
-                            """, 
-                            unsafe_allow_html=True
-                        )
+                        st.markdown(consulting_response.text)
                         
                     clean_text = consulting_response.text
                     clean_text = re.sub(r'\*+', '', clean_text)  
