@@ -765,7 +765,7 @@ elif st.session_state.current_page == 'AI 매칭':
                             return '', ''
                         return s_val, e_val
                         
-                    df[['접수시작일', '마감일']] = df.apply(lambda x: pd.Series(rescue_dates(x)), axis=1)
+                df[['접수시작일', '마감일']] = df.apply(lambda x: pd.Series(rescue_dates(x)), axis=1)
 
                 if loc_str != "전국":
                     if '지역' not in df.columns: df['지역'] = ''
