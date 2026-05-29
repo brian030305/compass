@@ -1176,6 +1176,36 @@ elif st.session_state.current_page == 'AI 창업 컨설팅':
                             """, 
                             unsafe_allow_html=True
                         )
+                        
+                    # ==========================================
+                    # 💡 [신규 추가] 워드(Word) 문서 변환 및 다운로드 기능
+                    # ==========================================
+                    # 1. 마크다운 특수기호(*, #, ` 등)를 깔끔하게 제거합니다.
+                    clean_text = consulting_response.text
+                    clean_text = re.sub(r'\*+', '', clean_text)  
+                    clean_text = re.sub(r'#+\s*', '', clean_text) 
+                    clean_text = re.sub(r'`+', '', clean_text)    
+                    
+                    # 2. 워드 문서를 생성하고 내용을 작성합니다.
+                    doc = Document()
+                    doc.add_heading("AI 창업 컨설팅 진단 리포트", 0)
+                    doc.add_paragraph(clean_text)
+                    
+                    # 3. 문서를 메모리 버퍼에 저장합니다.
+                    bio = io.BytesIO()
+                    doc.save(bio)
+                    bio.seek(0)
+                    
+                    st.divider()
+                    
+                    # 4. 다운로드 버튼을 화면에 띄웁니다.
+                    st.download_button(
+                        label="📥 컨설팅 리포트 Word 파일로 다운로드",
+                        data=bio,
+                        file_name="AI_창업_컨설팅_진단_리포트.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+                    
                 except Exception as e:
                     st.error(f"컨설팅 리포트 생성 중 오류가 발생했습니다: {e}")
 
