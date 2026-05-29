@@ -169,8 +169,8 @@ if not st.session_state.logged_in:
                 st.error("사업자등록번호는 10자리 숫자여야 합니다.")
             else:
                 with st.spinner("국세청 서버 실시간 조회 중..."):
-                    # 🚨 공공데이터포털에서 발급받은 일반 인증키(Decoding)를 아래 문자열 안에 붙여넣으세요!
-                    NTS_SERVICE_KEY = "여기에_발급받은_인증키를_붙여넣으세요"
+                    # st.secrets를 활용하여 안전하게 키를 불러옵니다.
+                    NTS_SERVICE_KEY = st.secrets["NTS_API_KEY"]
                     
                     is_valid, msg = verify_business_number(clean_no, NTS_SERVICE_KEY)
                     
