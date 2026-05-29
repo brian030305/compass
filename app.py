@@ -154,7 +154,8 @@ if not st.session_state.logged_in:
 
     # --- [회원가입 탭] ---
     with tab2:
-        st.markdown("#### 🏢 1. 사업자등록번호 인증 (필수)")
+        st.markdown("#### 🏢 1. 사업자등록번호 인증 (선택 - 예비창업자는 건너뛰세요)")
+        st.caption("※ 이미 창업하신 경우 사업자번호를 인증해 두시면 추후 더 정확한 서비스를 제공받으실 수 있습니다.")
         
         col1, col2 = st.columns([3, 1])
         with col1:
@@ -189,7 +190,8 @@ if not st.session_state.logged_in:
             
         with st.form("signup_form"):
             st.markdown("#### 👤 2. 기업 초기 세팅 정보")
-            signup_id = st.text_input("아이디 (기업명)", placeholder="예: 창업나침반(주)")
+            # 예비창업자를 배려하여 Placeholder 문구를 수정했습니다.
+            signup_id = st.text_input("아이디 (기업명 또는 팀명/가칭)", placeholder="예: 창업나침반(주) 또는 예비창업팀 알파")
             signup_pw = st.text_input("비밀번호", type='password')
             signup_pw_check = st.text_input("비밀번호 확인", type='password')
             
@@ -204,11 +206,9 @@ if not st.session_state.logged_in:
             signup_btn = st.form_submit_button("✅ 가입 완료 및 시작하기", type="primary", use_container_width=True)
             
         if signup_btn:
-            # 🚨 신규 로직: 사업자 인증을 안했으면 가입 거부
-            if not st.session_state.get('business_verified', False):
-                st.warning("⚠️ 위쪽에서 사업자등록번호 실시간 인증을 먼저 완료해주세요.")
-            elif signup_id == "" or signup_pw == "":
-                st.warning("아이디(기업명)와 비밀번호는 필수 입력 사항입니다.")
+            # 🚨 [핵심 수정] 사업자 인증 강제 검사(if not business_verified...) 로직을 완전히 삭제했습니다!
+            if signup_id == "" or signup_pw == "":
+                st.warning("아이디(기업명/팀명)와 비밀번호는 필수 입력 사항입니다.")
             elif signup_pw != signup_pw_check:
                 st.warning("비밀번호가 일치하지 않습니다.")
             elif signup_id in users_df['ID'].astype(str).values:
