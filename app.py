@@ -751,7 +751,7 @@ elif st.session_state.current_page == 'AI 매칭':
                     del st.session_state.matching_list_df
             else:
                 if '마감일' not in df.columns: df['마감일'] = ''
-                    if '접수시작일' not in df.columns: df['접수시작일'] = ''
+                if '접수시작일' not in df.columns: df['접수시작일'] = ''
                     
                     def rescue_dates(r):
                         e_val = str(r.get('마감일', ''))
