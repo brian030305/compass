@@ -434,11 +434,19 @@ if st.session_state.current_page == '대시보드':
         is_info_set = (ind_str != "선택해주세요" and ind_str != "")
         
         if is_info_set:
-            df = fetch_bizinfo_api()
+            # 1. 기존 기업마당 데이터 호출 및 컬럼명 정리
+            biz_df = fetch_bizinfo_api()
+            if not biz_df.empty and 'pblancNm' in biz_df.columns:
+                biz_df = biz_df.rename(columns={'pblancNm': '사업명', 'pancInsttNm': '소관기관', 'reqstBeginDe': '접수시작일', 'reqstEndDe': '마감일', 'areaNm': '지역'})
             
-            if not df.empty and 'pblancNm' in df.columns:
-                df = df.rename(columns={'pblancNm': '사업명', 'pancInsttNm': '소관기관', 'reqstBeginDe': '접수시작일', 'reqstEndDe': '마감일', 'areaNm': '지역'})
-                
+            # 2. 신규 K-Startup 데이터 호출
+            k_df = fetch_kstartup_data()
+            
+            # 3. 두 데이터를 하나로 병합
+            df = pd.concat([d for d in [biz_df, k_df] if not d.empty], ignore_index=True)
+            
+            if not df.empty:
+                # 🚨 여기 두 줄을 안쪽으로 들여쓰기 해야 합니다!
                 if '마감일' not in df.columns: df['마감일'] = ''
                 if '접수시작일' not in df.columns: df['접수시작일'] = ''
                 
@@ -452,8 +460,10 @@ if st.session_state.current_page == '대시보드':
                             return dates[0], dates[-1]
                         return '', ''
                     return str(r.get('접수시작일', '')), e_val
+                
                 df[['접수시작일', '마감일']] = df.apply(lambda x: pd.Series(rescue_dates(x)), axis=1)
 
+                
                 if loc_str != "전국":
                     if '지역' not in df.columns: df['지역'] = ''
                     if '소관기관' not in df.columns: df['소관기관'] = ''
@@ -717,24 +727,30 @@ elif st.session_state.current_page == 'AI 매칭':
     if st.button("🚀 실시간 공고 리스트 및 AI 추천 분석 불러오기", type="primary"):
         with st.spinner("서버에서 공고를 수집하고, AI가 귀사에 가장 적합한 사업을 정밀 분석 중입니다... (약 5~10초 소요)"):
             
-            df = fetch_bizinfo_api()
+            # 1. 기존 기업마당 데이터 호출 및 컬럼명 정리
+            biz_df = fetch_bizinfo_api()
+            if not biz_df.empty and 'pblancNm' in biz_df.columns:
+                biz_df = biz_df.rename(columns={
+                    'pblancNm': '사업명',
+                    'pancInsttNm': '소관기관',
+                    'reqstBeginDe': '접수시작일',
+                    'reqstEndDe': '마감일',
+                    'pblancUrl': '상세링크',
+                    'areaNm': '지역' 
+                })
+                
+            # 2. 신규 K-Startup 데이터 호출
+            k_df = fetch_kstartup_data()
+            
+            # 3. 두 데이터를 하나로 병합
+            df = pd.concat([d for d in [biz_df, k_df] if not d.empty], ignore_index=True)
             
             if df.empty:
                 st.warning("서버에서 불러올 수 있는 실시간 공고가 없거나 API 키를 확인해주세요.")
                 if 'matching_list_df' in st.session_state:
                     del st.session_state.matching_list_df
             else:
-                if 'pblancNm' in df.columns:
-                    df = df.rename(columns={
-                        'pblancNm': '사업명',
-                        'pancInsttNm': '소관기관',
-                        'reqstBeginDe': '접수시작일',
-                        'reqstEndDe': '마감일',
-                        'pblancUrl': '상세링크',
-                        'areaNm': '지역' 
-                    })
-                    
-                    if '마감일' not in df.columns: df['마감일'] = ''
+                if '마감일' not in df.columns: df['마감일'] = ''
                     if '접수시작일' not in df.columns: df['접수시작일'] = ''
                     
                     def rescue_dates(r):
