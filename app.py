@@ -15,7 +15,8 @@ from data_manager import (
     fetch_safety_cert_data, fetch_mss_data, fetch_ktl_data,
     fetch_kiat_data, fetch_keit_min_data, fetch_keit_rd_data,
     fetch_national_business_api, fetch_local_keit_announcement, 
-    fetch_mss_tech_cert_api, fetch_bizinfo_api, fetch_kstartup_data
+    fetch_mss_tech_cert_api, fetch_bizinfo_api, fetch_kstartup_data,
+    fetch_msit_rd_data
 )
 
 # 1. 기본 설정
