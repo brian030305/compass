@@ -373,6 +373,7 @@ with st.sidebar:
     st.button("✨ AI 매칭", use_container_width=True, type="primary" if st.session_state.current_page == 'AI 매칭' else "secondary", on_click=change_page, args=('AI 매칭',))
     st.button("📈 생존율 예측", use_container_width=True, type="primary" if st.session_state.current_page == '생존율 예측' else "secondary", on_click=change_page, args=('생존율 예측',))
     st.button("📅 지원 캘린더", use_container_width=True, type="primary" if st.session_state.current_page == '지원 캘린더' else "secondary", on_click=change_page, args=('지원 캘린더',))
+    st.button("💡 AI 창업 컨설팅", use_container_width=True, type="primary" if st.session_state.current_page == 'AI 창업 컨설팅' else "secondary", on_click=change_page, args=('AI 창업 컨설팅',))
     st.button("📄 보고서 생성", use_container_width=True, type="primary" if st.session_state.current_page == '보고서 생성' else "secondary", on_click=change_page, args=('보고서 생성',))
     
     st.divider()
@@ -946,68 +947,7 @@ elif st.session_state.current_page == 'AI 매칭':
                         added_count += 1
                         
                     st.success(f"🎉 체크하신 {added_count}건의 공고가 나만의 지원 캘린더에 정상 등록되었습니다! '지원 캘린더' 메뉴에서 확인하세요.")
-
-
-        # ==========================================
-        # 💡 [신규 추가] AI 사업계획서 진단 및 컨설팅 영역
-        # ==========================================
-        st.divider() # 화면을 분리하는 가로줄
-        st.markdown("### 💡 AI 맞춤형 사업계획서(BM) 객관적 진단")
-        st.info("구상 중인 창업 아이템이나 작성 중인 사업계획서의 핵심 내용을 입력하시면, 현직 심사역의 관점에서 날카로운 약점 진단과 보완 전략을 제시해 드립니다.")
-        
-        # 사용자로부터 사업 아이템 설명을 입력받습니다.
-        user_item_desc = st.text_area(
-            "사업 아이템 및 비즈니스 모델(BM) 요약", 
-            height=150, 
-            placeholder="예: AI 기반 맞춤형 건강 영양제 구독 서비스. 고객의 건강검진 데이터를 연동하여 매월 필요한 영양제를 배송해주는 모델입니다. 현재 프로토타입 개발 중입니다."
-        )
-        
-        if st.button("🔍 내 사업계획서 진단 및 컨설팅 리포트 생성", type="primary"):
-            if user_item_desc.strip() == "":
-                st.warning("진단을 위해 사업 아이템 설명을 입력해 주세요.")
-            else:
-                with st.spinner("AI 창업 심사역이 귀사의 비즈니스 모델을 다각도로 정밀 분석하고 있습니다... (약 10초 소요)"):
-                    
-                    # AI 컨설턴트 역할을 부여하는 강력한 프롬프트(명령어) 세팅
-                    consulting_prompt = f"""
-                    당신은 수많은 스타트업을 성공으로 이끈 대한민국 최고의 창업 컨설턴트이자 정부지원사업(K-Startup, 과기부 R&D 등) 전문 심사역입니다.
-                    아래 사용자의 사업 아이템을 분석하고, 객관적이고 날카로운 진단을 내려주세요. 모호한 칭찬보다는 실제 합격과 생존에 도움이 되는 실질적인 조언이 필요합니다.
-
-                    [사용자 사업 아이템 요약]
-                    {user_item_desc}
-
-                    [컨설팅 리포트 필수 포함 내용]
-                    1. 🎯 사업성 진단 (Strengths): 이 아이템의 시장성과 긍정적인 요소
-                    2. ⚠️ 치명적인 약점 및 리스크 (Weaknesses): 심사위원들이 공격할 만한 빈틈 (예: 수익모델 부재, 기술 진입장벽 부족, 규제 문제 등)
-                    3. 🛠️ 합격을 위한 방어 전략 (Solutions): 위 약점을 사업계획서 상에서 어떻게 포장하고 보완해야 하는지 구체적인 논리 제시
-                    4. 🚀 추천 지원사업 포지셔닝: 아이템 성격상 R&D(기술고도화), K-Startup(사업화 자금), 융자형 중 어떤 공고를 타겟팅하는 것이 유리한지 조언
-                    
-                    결과는 가독성 좋게 마크다운 문법을 사용하여 깔끔하게 정리해 주세요.
-                    """
-                    
-                    try:
-                        # Gemini 모델 호출
-                        consulting_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-                        consulting_response = consulting_model.generate_content(consulting_prompt)
-                        
-                        st.success("✅ AI 진단 및 컨설팅 리포트가 완성되었습니다!")
-                        
-                        # 결과를 화면에 예쁘게 출력할 박스 생성
-                        with st.container():
-                            st.markdown(
-                                f"""
-                                <div style="background-color:#f8f9fa; padding:20px; border-radius:10px; border-left: 5px solid #0056b3; margin-top:10px;">
-                                    {consulting_response.text}
-                                </div>
-                                """, 
-                                unsafe_allow_html=True
-                            )
-                    except Exception as e:
-                        st.error(f"컨설팅 리포트 생성 중 오류가 발생했습니다: {e}")
-
-
-
-
+    
 # ------- 생존율 예측 설정 -----------
 elif st.session_state.current_page == '생존율 예측':
     st.subheader("📈 산업군 기반 생존율 정밀 진단 (빅데이터 연계)")
@@ -1186,6 +1126,59 @@ elif st.session_state.current_page == '지원 캘린더':
                 st.session_state.calendar_events.pop(matched_idx)
                 st.success(f"'{target_title}' 일정을 나침반 캘린더 데이터에서 완전히 안전하게 삭제했습니다.")
                 st.rerun()
+
+# ------- AI 창업 컨설팅 설정 -----------
+elif st.session_state.current_page == 'AI 창업 컨설팅':
+    st.header("💡 AI 맞춤형 사업계획서(BM) 객관적 진단")
+    st.caption("구상 중인 창업 아이템이나 작성 중인 사업계획서의 핵심 내용을 입력하시면, 현직 심사역의 관점에서 날카로운 약점 진단과 보완 전략을 제시해 드립니다.")
+    
+    # 사용자로부터 사업 아이템 설명을 입력받습니다.
+    user_item_desc = st.text_area(
+        "사업 아이템 및 비즈니스 모델(BM) 요약", 
+        height=150, 
+        placeholder="예: AI 기반 맞춤형 건강 영양제 구독 서비스. 고객의 건강검진 데이터를 연동하여 매월 필요한 영양제를 배송해주는 모델입니다. 현재 프로토타입 개발 중입니다."
+    )
+    
+    if st.button("🔍 내 사업계획서 진단 및 컨설팅 리포트 생성", type="primary"):
+        if user_item_desc.strip() == "":
+            st.warning("진단을 위해 사업 아이템 설명을 입력해 주세요.")
+        else:
+            with st.spinner("AI 창업 심사역이 귀사의 비즈니스 모델을 다각도로 정밀 분석하고 있습니다... (약 10초 소요)"):
+                
+                consulting_prompt = f"""
+                당신은 수많은 스타트업을 성공으로 이끈 대한민국 최고의 창업 컨설턴트이자 정부지원사업(K-Startup, 과기부 R&D 등) 전문 심사역입니다.
+                아래 사용자의 사업 아이템을 분석하고, 객관적이고 날카로운 진단을 내려주세요. 모호한 칭찬보다는 실제 합격과 생존에 도움이 되는 실질적인 조언이 필요합니다.
+
+                [사용자 사업 아이템 요약]
+                {user_item_desc}
+
+                [컨설팅 리포트 필수 포함 내용]
+                1. 🎯 사업성 진단 (Strengths): 이 아이템의 시장성과 긍정적인 요소
+                2. ⚠️ 치명적인 약점 및 리스크 (Weaknesses): 심사위원들이 공격할 만한 빈틈 (예: 수익모델 부재, 기술 진입장벽 부족, 규제 문제 등)
+                3. 🛠️ 합격을 위한 방어 전략 (Solutions): 위 약점을 사업계획서 상에서 어떻게 포장하고 보완해야 하는지 구체적인 논리 제시
+                4. 🚀 추천 지원사업 포지셔닝: 아이템 성격상 R&D(기술고도화), K-Startup(사업화 자금), 융자형 중 어떤 공고를 타겟팅하는 것이 유리한지 조언
+                
+                결과는 가독성 좋게 마크다운 문법을 사용하여 깔끔하게 정리해 주세요.
+                """
+                
+                try:
+                    consulting_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+                    consulting_response = consulting_model.generate_content(consulting_prompt)
+                    
+                    st.success("✅ AI 진단 및 컨설팅 리포트가 완성되었습니다!")
+                    
+                    with st.container():
+                        st.markdown(
+                            f"""
+                            <div style="background-color:#f8f9fa; padding:20px; border-radius:10px; border-left: 5px solid #0056b3; margin-top:10px; color:#333333;">
+                                {consulting_response.text}
+                            </div>
+                            """, 
+                            unsafe_allow_html=True
+                        )
+                except Exception as e:
+                    st.error(f"컨설팅 리포트 생성 중 오류가 발생했습니다: {e}")
+
 
 # ------- 보고서 생성 설정 -----------
 elif st.session_state.current_page == '보고서 생성':
