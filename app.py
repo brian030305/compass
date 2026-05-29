@@ -243,32 +243,6 @@ if not st.session_state.logged_in:
     st.stop()
 # ------------------ 🔐 회원가입 및 로그인 시스템 끝 ------------------
 
-# --- AI 스마트 분류 함수 ---
-@st.cache_data(ttl=3600) 
-def get_ai_classified_data():
-    df = get_ai_classified_data()
-    if df.empty: return df
-    
-    classification_prompt = """
-    다음 지원사업 공고 제목을 읽고, 아래 5개 업종 중 가장 적합한 하나를 선택해. 
-    답변은 딱 업종명만 출력할 것.
-    업종 리스트: ['IT/소프트웨어', '제조업', '바이오/헬스케어', '에너지/환경', '기타']
-    공고명: {title}
-    """
-    
-    categories = []
-    progress_bar = st.progress(0)
-    for i, (_, row) in enumerate(df.iterrows()):
-        title = str(row.get('사업명', '')) 
-        response = st.session_state.chat_session.send_message(classification_prompt.format(title=title))
-        categories.append(response.text.strip())
-        progress_bar.progress((i + 1) / len(df))
-    
-    df['업종태그'] = categories
-    progress_bar.empty()
-    return df
-
-
 # ==========================================
 # 🎯 기업 정보 및 비밀번호 수정 팝업창 함수
 # ==========================================
