@@ -753,7 +753,7 @@ elif st.session_state.current_page == 'AI 매칭':
                 if '마감일' not in df.columns: df['마감일'] = ''
                 if '접수시작일' not in df.columns: df['접수시작일'] = ''
                     
-                    def rescue_dates(r):
+                def rescue_dates(r):
                         e_val = str(r.get('마감일', ''))
                         s_val = str(r.get('접수시작일', ''))
                         if pd.isna(pd.to_datetime(e_val, errors='coerce')):
