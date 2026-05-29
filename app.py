@@ -398,15 +398,17 @@ def get_ai_classified_data():
     valid_dfs = [d for d in [df_mss, df_rd] if not d.empty]
     return pd.concat(valid_dfs, ignore_index=True) if valid_dfs else pd.DataFrame()
 
-base_instruction = "당신은 한국의 스타트업과 중소기업을 돕는 최고 수준의 AI 컨설턴트입니다."
+base_instruction = """당신은 한국의 스타트업과 중소기업을 돕는 최고 수준의 전천후 AI 창업 멘토입니다.
+사용자가 '지원사업'을 물어보면 공고를 기반으로 대답하되, '세무, 법무, 마케팅, 지분, 팀빌딩' 등 창업 일반에 대해 질문하면 특정 업종이나 공고에 전혀 얽매이지 말고 스타트업 실무 관점에서 아주 자유롭고 전문적으로 답변해 주세요. '제가 답변할 수 없는 내용입니다' 등의 회피성 멘트는 절대 금지합니다."""
+
 if "industry" in st.session_state and "tech_field" in st.session_state:
     if st.session_state.industry != "선택해주세요" or st.session_state.tech_field:
-        base_instruction += f"\n\n[고객 정보]\n- 업종: {st.session_state.industry}\n- 기술 분야: {st.session_state.tech_field}\n★이 기업 정보를 기준으로 사업을 필터링하세요."
+        base_instruction += f"\n\n[고객 기본 정보 (참고용)]\n- 업종: {st.session_state.industry}\n- 기술 분야: {st.session_state.tech_field}\n★ 질문이 위 정보와 관련 있으면 맞춤형으로, 관련 없는 자유 질문이면 이 정보에 구애받지 말고 넓게 답변하세요."
 
 if "chat_session" not in st.session_state:
     model = genai.GenerativeModel(model_name="gemini-2.5-flash", tools=tools_list, system_instruction=base_instruction)
     st.session_state.chat_session = model.start_chat(enable_automatic_function_calling=False)
-
+    
 # 4. 메인 화면 출력부
 company_name = st.session_state.get('company_name', st.query_params.get("company", "테크스타트업(주)"))
 ind_str = st.session_state.get('industry', st.query_params.get("industry", "선택해주세요"))
@@ -716,7 +718,7 @@ if st.session_state.current_page == '대시보드':
                     with st.chat_message(role):
                         st.markdown(message.parts[0].text)
             
-            user_input = st.chat_input("질문하거나 지시를 내려보세요...", key="dashboard_chat_input")
+            user_input = st.chat_input("지원사업 검색은 물론, 세무/마케팅 등 창업 관련 무엇이든 자유롭게 물어보세요!")
             
             if user_input:
                 with chat_container:
@@ -1177,35 +1179,28 @@ elif st.session_state.current_page == 'AI 창업 컨설팅':
                             unsafe_allow_html=True
                         )
                         
-                    # ==========================================
-                    # 💡 [신규 추가] 워드(Word) 문서 변환 및 다운로드 기능
-                    # ==========================================
-                    # 1. 마크다운 특수기호(*, #, ` 등)를 깔끔하게 제거합니다.
+                    # 워드 다운로드 기능
                     clean_text = consulting_response.text
                     clean_text = re.sub(r'\*+', '', clean_text)  
                     clean_text = re.sub(r'#+\s*', '', clean_text) 
                     clean_text = re.sub(r'`+', '', clean_text)    
                     
-                    # 2. 워드 문서를 생성하고 내용을 작성합니다.
                     doc = Document()
                     doc.add_heading("AI 창업 컨설팅 진단 리포트", 0)
                     doc.add_paragraph(clean_text)
                     
-                    # 3. 문서를 메모리 버퍼에 저장합니다.
                     bio = io.BytesIO()
                     doc.save(bio)
                     bio.seek(0)
                     
                     st.divider()
                     
-                    # 4. 다운로드 버튼을 화면에 띄웁니다.
                     st.download_button(
                         label="📥 컨설팅 리포트 Word 파일로 다운로드",
-                        data=bio,
+                        data=bio.getvalue(),
                         file_name="AI_창업_컨설팅_진단_리포트.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     )
-                    
                 except Exception as e:
                     st.error(f"컨설팅 리포트 생성 중 오류가 발생했습니다: {e}")
 
