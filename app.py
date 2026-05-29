@@ -383,30 +383,20 @@ with st.sidebar:
 # 💡 [핵심 3] AI 챗봇 토큰 과부하 방지 및 맞춤형 필터링 함수
 # ==========================================
 def filter_df_for_chatbot(df):
-    """데이터 전체를 던지지 않고, 사용자의 키워드로 필터링하여 상위 10개만 AI에게 전달합니다."""
-    if df is None or df.empty:
-        return "데이터 없음"
-        
+    if df is None or df.empty: return "데이터 없음"
     ind_str = st.session_state.get('industry', '선택해주세요')
     tech_str = st.session_state.get('tech_field', '')
-    
-    # 기업의 핵심 키워드(기술 분야 또는 업종)를 기준으로 잡습니다.
     keyword = tech_str if tech_str else (ind_str if ind_str != "선택해주세요" else "")
     
     if keyword:
-        # 데이터프레임 전체에서 해당 키워드가 포함된 행만 솎아냅니다.
         mask = df.apply(lambda row: row.astype(str).str.contains(keyword, case=False).any(), axis=1)
         filtered_df = df[mask]
     else:
         filtered_df = df
         
-    if filtered_df.empty:
-        return f"'{keyword}' 관련 데이터 없음"
-        
-    # AI가 읽다 지치지 않도록(토큰 과부하 방지) 핵심 데이터 상위 10개만 텍스트로 넘깁니다.
+    if filtered_df.empty: return f"'{keyword}' 관련 데이터 없음"
     return filtered_df.head(10).to_string()
 
-# 챗봇이 데이터를 요청할 때 위 필터링 함수를 거치도록 수정합니다.
 def search_safety_cert(): return filter_df_for_chatbot(fetch_safety_cert_data())
 def search_mss_support(): return filter_df_for_chatbot(fetch_mss_data())
 def search_ktl_test(): return filter_df_for_chatbot(fetch_ktl_data())
@@ -432,7 +422,7 @@ if "industry" in st.session_state and "tech_field" in st.session_state:
 
 if "chat_session" not in st.session_state:
     model = genai.GenerativeModel(model_name="gemini-2.5-flash", tools=tools_list, system_instruction=base_instruction)
-    st.session_state.chat_session = model.start_chat(enable_automatic_function_calling=False)
+    st.session_state.chat_session = model.start_chat(enable_automatic_function_calling=True)
     
 # 4. 메인 화면 출력부
 company_name = st.session_state.get('company_name', st.query_params.get("company", "테크스타트업(주)"))
@@ -739,9 +729,14 @@ if st.session_state.current_page == '대시보드':
             chat_container = st.container(height=550)
             with chat_container:
                 for message in st.session_state.chat_session.history:
-                    role = "user" if message.role == "user" else "assistant"
-                    with st.chat_message(role):
-                        st.markdown(message.parts[0].text)
+                    try:
+                        text = message.parts[0].text
+                        if text:
+                            role = "user" if message.role == "user" else "assistant"
+                            with st.chat_message(role):
+                                st.markdown(text)
+                    except:
+                        pass
             
             user_input = st.chat_input("지원사업 검색은 물론, 세무/마케팅 등 창업 관련 무엇이든 자유롭게 물어보세요!")
             
@@ -759,17 +754,27 @@ if st.session_state.current_page == '대시보드':
 # ------- AI 어시스턴트 설정 -----------
 elif st.session_state.current_page == 'AI 어시스턴트':
     st.header("💬 AI 어시스턴트")
+    
+    # 1. 대화 기록 출력 (내부 시스템 코드는 숨김 처리)
     for message in st.session_state.chat_session.history:
-        if message.role == "user" or (message.role == "model" and message.parts[0].text):
-            with st.chat_message(message.role):
-                st.markdown(message.parts[0].text)
+        try:
+            text = message.parts[0].text
+            if text:
+                role = "user" if message.role == "user" else "assistant"
+                with st.chat_message(role):
+                    st.markdown(text)
+        except:
+            pass # 텍스트가 없는 내부 데이터(function_call 등)는 무시
+            
     user_input = st.chat_input("지원사업 검색은 물론, 세무/마케팅 등 창업 관련 무엇이든 자유롭게 물어보세요!")
     if user_input:
-        with st.chat_message("user"): st.markdown(user_input)
-        with st.chat_message("model"):
-            with st.spinner("AI가 데이터를 분석 중입니다..."):             
-                response = st.session_state.chat_session.send_message(user_input, stream=True)                         
-                st.write_stream(response)
+        with st.chat_message("user"): 
+            st.markdown(user_input)
+        with st.chat_message("assistant"):
+            with st.spinner("AI가 최신 데이터를 검색하고 분석 중입니다... (약 5초 소요)"):             
+                # 2. 스트리밍(stream=True) 제거 및 출력 방식 변경
+                response = st.session_state.chat_session.send_message(user_input)                         
+                st.markdown(response.text)
         st.rerun()
 
 # ------- AI 매칭 설정 -----------
