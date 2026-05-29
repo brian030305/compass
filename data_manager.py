@@ -227,10 +227,10 @@ def admin_change_user_password(user_id, hashed_pw):
         return False
 
 def fetch_kstartup_data():
-    """K-Startup 창업지원사업 공고 조회 API (보안 적용 완료)"""
+    """K-Startup 창업지원사업 공고 조회 API"""
     url = "https://apis.data.go.kr/B552735/kisedKstartupService01/getAnnouncementInformation01"
     
-    # 하드코딩된 키를 제거하고 st.secrets를 통해 안전하게 불러옵니다.
+    # st.secrets를 통해 안전하게 불러옵니다.
     service_key = st.secrets["KSTARTUP_API_KEY"]
     
     params = {
@@ -254,10 +254,19 @@ def fetch_kstartup_data():
             if items:
                 df = pd.DataFrame(items)
                 
+                # 🚨 수정된 부분: K-Startup의 다양한 키값을 모두 한글로 매핑합니다.
                 rename_dict = {}
-                if 'postsnNm' in df.columns: rename_dict['postsnNm'] = '사업명'
+                
+                # 사업명 처리
+                if 'pbancNm' in df.columns: rename_dict['pbancNm'] = '사업명'
+                elif 'postsnNm' in df.columns: rename_dict['postsnNm'] = '사업명'
                 elif 'title' in df.columns: rename_dict['title'] = '사업명'
-                elif 'bizPrchDprtNm' in df.columns: rename_dict['bizPrchDprtNm'] = '소관기관'
+                
+                # 기타 필수 정보 처리
+                if 'bizPrchDprtNm' in df.columns: rename_dict['bizPrchDprtNm'] = '소관기관'
+                if 'pbancRcptBgngDt' in df.columns: rename_dict['pbancRcptBgngDt'] = '접수시작일'
+                if 'pbancRcptEndDt' in df.columns: rename_dict['pbancRcptEndDt'] = '마감일'
+                if 'dtlPgUrl' in df.columns: rename_dict['dtlPgUrl'] = '상세링크'
                 
                 if rename_dict:
                     df = df.rename(columns=rename_dict)
