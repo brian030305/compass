@@ -227,75 +227,42 @@ def admin_change_user_password(user_id, hashed_pw):
         return False
 
 def fetch_kstartup_data():
-    """K-Startup 창업지원사업 API (웹 화면 직접 출력 디버깅 모드)"""
     url = "https://apis.data.go.kr/B552735/kisedKstartupService01/getAnnouncementInformation01"
-    
-    # st.secrets에서 키 불러오기
     service_key = st.secrets["KSTARTUP_API_KEY"]
-    
-    params = {
-        'serviceKey': service_key,
-        'pageNo': 1,
-        'numOfRows': 100,
-        'returnType': 'JSON'
-    }
+    params = {'serviceKey': service_key, 'pageNo': 1, 'numOfRows': 100, 'returnType': 'JSON'}
     
     try:
         response = requests.get(url, params=params, timeout=10)
-        
-        # 🚨 [디버깅 1] HTTP 상태 코드가 200(정상)이 아닐 경우 화면에 에러 원문 띄우기
-        if response.status_code != 200:
-            st.error(f"⚠️ K-Startup 서버 접근 실패 (코드: {response.status_code})")
-            st.code(response.text) # 에러 원문을 화면에 출력
-            return pd.DataFrame()
-            
-        # 🚨 [디버깅 2] 서버 응답이 JSON이 아닐 경우(보통 공공데이터 포털 키 인증 에러 시 발생) 화면에 띄우기
-        try:
+        if response.status_code == 200:
             result = response.json()
-        except Exception as e:
-            st.error("⚠️ K-Startup API가 정상적인 JSON 데이터가 아닌 에러 메시지를 보냈습니다.")
-            st.info("아래의 서버 응답 원문을 확인해 주세요. (인증키 미등록, 트래픽 초과 등)")
-            st.code(response.text[:1000]) 
-            return pd.DataFrame()
+            # 데이터 구조 파싱 (기존 로직 유지)
+            items = []
+            if "response" in result and "body" in result["response"] and "items" in result["response"]["body"]:
+                items = result["response"]["body"]["items"]["item"]
             
-        # 정상적으로 JSON 변환이 되었다면 데이터 추출 시작
-        items = []
-        if "response" in result and "body" in result["response"] and "items" in result["response"]["body"]:
-            items_data = result["response"]["body"]["items"]
-            if isinstance(items_data, dict) and "item" in items_data:
-                items = items_data["item"]
-            elif isinstance(items_data, list):
-                items = items_data
-        elif "data" in result:
-            items = result["data"]
-            
-        if items:
-            df = pd.DataFrame(items)
-            
-            rename_dict = {}
-            if 'postsnNm' in df.columns: rename_dict['postsnNm'] = '사업명'
-            elif 'pbancNm' in df.columns: rename_dict['pbancNm'] = '사업명'
-            elif 'title' in df.columns: rename_dict['title'] = '사업명'
-            
-            if 'bizPrchDprtNm' in df.columns: rename_dict['bizPrchDprtNm'] = '소관기관'
-            elif 'pancInsttNm' in df.columns: rename_dict['pancInsttNm'] = '소관기관'
-            
-            if 'rcptBgngDt' in df.columns: rename_dict['rcptBgngDt'] = '접수시작일'
-            elif 'pbancRcptBgngDt' in df.columns: rename_dict['pbancRcptBgngDt'] = '접수시작일'
-            
-            if 'rcptEndDt' in df.columns: rename_dict['rcptEndDt'] = '마감일'
-            elif 'pbancRcptEndDt' in df.columns: rename_dict['pbancRcptEndDt'] = '마감일'
-            
-            if 'dtlPgUrl' in df.columns: rename_dict['dtlPgUrl'] = '상세링크'
-            elif 'pblancUrl' in df.columns: rename_dict['pblancUrl'] = '상세링크'
-            
-            if rename_dict:
-                df = df.rename(columns=rename_dict)
+            if items:
+                df = pd.DataFrame(items)
                 
-            return df
-            
+                # 1. 필요한 컬럼만 추출하여 정제 (None 행 제거)
+                df = df.dropna(how='all') # 모든 값이 None인 행 제거
+                
+                # 2. 필수 컬럼 강제 매핑 (기업마당 컬럼명과 통일)
+                # K-Startup의 키값이 무엇이든 '사업명', '소관기관' 등으로 강제 전환
+                mapping = {
+                    'pbancNm': '사업명', 'postsnNm': '사업명', 'title': '사업명',
+                    'bizPrchDprtNm': '소관기관', 'pancInsttNm': '소관기관',
+                    'pbancRcptBgngDt': '접수시작일', 'pbancRcptEndDt': '마감일',
+                    'dtlPgUrl': '상세링크'
+                }
+                df = df.rename(columns=mapping)
+                
+                # 3. 기업마당과 합치기 위해 필요한 컬럼만 남기기
+                cols_to_keep = ['사업명', '소관기관', '접수시작일', '마감일', '상세링크']
+                # 존재하는 컬럼만 선택
+                existing_cols = [c for c in cols_to_keep if c in df.columns]
+                df = df[existing_cols]
+                
+                return df
         return pd.DataFrame()
-        
     except Exception as e:
-        st.error(f"⚠️ K-Startup 파이썬 실행 에러: {str(e)}")
         return pd.DataFrame()
