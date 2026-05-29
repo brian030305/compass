@@ -225,3 +225,46 @@ def admin_change_user_password(user_id, hashed_pw):
     except Exception as e:
         print(f"관리자 비밀번호 변경 오류: {e}")
         return False
+
+def fetch_kstartup_data():
+    """K-Startup 창업지원사업 공고 조회 API (보안 적용 완료)"""
+    url = "https://apis.data.go.kr/B552735/kisedKstartupService01/getAnnouncementInformation01"
+    
+    # 하드코딩된 키를 제거하고 st.secrets를 통해 안전하게 불러옵니다.
+    service_key = st.secrets["KSTARTUP_API_KEY"]
+    
+    params = {
+        'serviceKey': service_key,
+        'pageNo': 1,
+        'numOfRows': 100,
+        'returnType': 'JSON'
+    }
+    
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            result = response.json()
+            
+            items = []
+            if "response" in result and "body" in result["response"] and "items" in result["response"]["body"]:
+                items = result["response"]["body"]["items"]
+            elif "data" in result:
+                items = result["data"]
+                
+            if items:
+                df = pd.DataFrame(items)
+                
+                rename_dict = {}
+                if 'postsnNm' in df.columns: rename_dict['postsnNm'] = '사업명'
+                elif 'title' in df.columns: rename_dict['title'] = '사업명'
+                elif 'bizPrchDprtNm' in df.columns: rename_dict['bizPrchDprtNm'] = '소관기관'
+                
+                if rename_dict:
+                    df = df.rename(columns=rename_dict)
+                    
+                return df
+                
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"K-Startup 데이터 로드 실패: {e}")
+        return pd.DataFrame()
