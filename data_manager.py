@@ -227,30 +227,37 @@ def admin_change_user_password(user_id, hashed_pw):
         return False
 
 def fetch_kstartup_data():
-    """K-Startup 창업지원사업 공고 조회 API (JSON 구조 완벽 대응)"""
+    """K-Startup 창업지원사업 API (에러 추적용 디버깅 코드)"""
     url = "https://apis.data.go.kr/B552735/kisedKstartupService01/getAnnouncementInformation01"
-    
-    # st.secrets를 통해 안전하게 불러옵니다.
     service_key = st.secrets["KSTARTUP_API_KEY"]
     
     params = {
         'serviceKey': service_key,
         'pageNo': 1,
         'numOfRows': 100,
-        'returnType': 'JSON'
+        'returnType': 'JSON',
+        'dataType': 'JSON'
     }
     
     try:
         response = requests.get(url, params=params, timeout=10)
+        
+        # 🚨 K-Startup 서버가 도대체 무슨 답변을 주고 있는지 무조건 터미널에 출력합니다.
+        print("===== [API 서버 원본 응답] =====")
+        print("상태 코드:", response.status_code)
+        print("내용:", response.text[:500])
+        print("================================")
+        
         if response.status_code == 200:
-            result = response.json()
+            try:
+                result = response.json()
+            except Exception as e:
+                print("JSON 변환 실패 (서버가 에러 메시지를 보냈습니다):", e)
+                return pd.DataFrame()
             
             items = []
-            # 1. JSON 구조 안에서 이중 포장된 실제 데이터 리스트 찾기
             if "response" in result and "body" in result["response"] and "items" in result["response"]["body"]:
                 items_data = result["response"]["body"]["items"]
-                
-                # 🚨 핵심 해결: items 안에 'item'이라는 딕셔너리로 한 번 더 감싸인 경우 처리
                 if isinstance(items_data, dict) and "item" in items_data:
                     items = items_data["item"]
                 elif isinstance(items_data, list):
@@ -261,29 +268,20 @@ def fetch_kstartup_data():
             if items:
                 df = pd.DataFrame(items)
                 
-                # (디버깅 지원) 파이썬 터미널에 실제 넘어오는 컬럼명을 출력합니다.
-                print("K-Startup API 실제 컬럼명:", df.columns.tolist())
-                
-                # 2. K-Startup 전용 키값들을 한글로 완벽 매핑
                 rename_dict = {}
-                
-                # 사업명
                 if 'postsnNm' in df.columns: rename_dict['postsnNm'] = '사업명'
                 elif 'pbancNm' in df.columns: rename_dict['pbancNm'] = '사업명'
                 elif 'title' in df.columns: rename_dict['title'] = '사업명'
                 
-                # 소관기관
                 if 'bizPrchDprtNm' in df.columns: rename_dict['bizPrchDprtNm'] = '소관기관'
                 elif 'pancInsttNm' in df.columns: rename_dict['pancInsttNm'] = '소관기관'
                 
-                # 날짜 (K-Startup은 rcptBgngDt, rcptEndDt 등을 주로 씁니다)
                 if 'rcptBgngDt' in df.columns: rename_dict['rcptBgngDt'] = '접수시작일'
                 elif 'pbancRcptBgngDt' in df.columns: rename_dict['pbancRcptBgngDt'] = '접수시작일'
                 
                 if 'rcptEndDt' in df.columns: rename_dict['rcptEndDt'] = '마감일'
                 elif 'pbancRcptEndDt' in df.columns: rename_dict['pbancRcptEndDt'] = '마감일'
                 
-                # 상세링크
                 if 'dtlPgUrl' in df.columns: rename_dict['dtlPgUrl'] = '상세링크'
                 elif 'pblancUrl' in df.columns: rename_dict['pblancUrl'] = '상세링크'
                 
