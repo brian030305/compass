@@ -266,3 +266,59 @@ def fetch_kstartup_data():
         return pd.DataFrame()
     except Exception as e:
         return pd.DataFrame()
+
+def fetch_msit_rd_data():
+    """3번 통합 R&D: 과학기술정보통신부 사업공고 API"""
+    url = "http://apis.data.go.kr/1721000/msitannouncementinfo/businessAnnouncMentList"
+    
+    # st.secrets에서 안전하게 키를 불러옵니다.
+    service_key = st.secrets.get("MSIT_API_KEY", "")
+    
+    params = {
+        'serviceKey': service_key,
+        'pageNo': 1,
+        'numOfRows': 100,
+        'resultType': 'json' 
+    }
+    
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            result = response.json()
+            
+            items = []
+            # 공공데이터포털의 보편적인 JSON 이중 포장 구조 해석
+            if "response" in result and "body" in result["response"] and "items" in result["response"]["body"]:
+                items_data = result["response"]["body"]["items"]
+                if isinstance(items_data, dict) and "item" in items_data:
+                    items = items_data["item"]
+                elif isinstance(items_data, list):
+                    items = items_data
+            
+            if items:
+                df = pd.DataFrame(items)
+                
+                # 🚨 디버깅: 터미널에 원본 컬럼명을 출력하여 구조를 확인합니다.
+                print("===== [과기부 API 실제 컬럼명] =====")
+                print(df.columns.tolist())
+                
+                # API 명세에 맞춰 컬럼명을 '사업명'으로 변경 (자주 쓰이는 키값 우선 매핑)
+                rename_dict = {}
+                if 'title' in df.columns: rename_dict['title'] = '사업명'
+                elif 'bizNm' in df.columns: rename_dict['bizNm'] = '사업명'
+                elif 'anmtNm' in df.columns: rename_dict['anmtNm'] = '사업명'
+                
+                if rename_dict:
+                    df = df.rename(columns=rename_dict)
+                    
+                # 소관기관 열이 없다면 강제로 채워줍니다.
+                if '소관기관' not in df.columns:
+                    df['소관기관'] = '과학기술정보통신부'
+                    
+                return df
+                
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"과기부 R&D 데이터 로드 실패: {e}")
+        return pd.DataFrame()
