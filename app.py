@@ -1283,38 +1283,51 @@ elif st.session_state.current_page == '보고서 생성':
         target_business = selected_business
         
     if st.button("사업계획서 초안 생성", type="primary"):
-            if not target_business: 
-                st.warning("사업명을 입력하거나 선택해주세요.")
-            else:
-                with st.spinner(f"'{target_business}' 지원 혜택 분석 및 실전용 사업계획서 작성 중..."):
-                    
-                    prompt = f"""
-                    지원사업명: '{target_business}'
-                    우리 기업 업종: {ind_str}
-                    핵심 기술: {tech_str}
-                    
-                    당신은 수많은 스타트업을 합격시킨 정부지원사업 전문 최고 컨설턴트입니다.
-                    단순한 범용 사업계획서가 아니라, 해당 사업에 '실제 지원'하기 위한 맞춤형 사업계획서 초안และ, 이 사업에 선정되었을 때 우리 기업이 얻을 수 있는 '실질적인 이점'을 심층 분석해 줘.
-                    
-                    반드시 아래 목차에 맞추어 심사위원을 설득할 수 있는 전문적이고 구체적인 비즈니스 문구로 작성할 것.
-                    
-                    ---
-                    
-                    📌 [제 1부] 본 지원사업 선정 시 기대효과 (우리 기업의 실질적 이점)
-                    1. 자금 조달 및 재무적 이점 (지원금 활용 가치)
-                    2. 기술({tech_str}) 고도화 및 인프라 확보 측면
-                    3. 시장 진출 및 레퍼런스(공공/민간) 확보 측면
-                    
-                    📝 [제 2부] {target_business} 실제 지원용 사업계획서 핵심 초안
-                    1. 지원 사업 참여 동기 및 우리 기업 비전과의 적합성
-                    2. 보유 기술의 차별성 및 시장 내 경쟁 우위
-                    3. 타겟 시장 진입 및 비즈니스 모델(BM) 스케일업 전략
-                    4. 지원금 활용 계획 및 구체적 향후 추진 일정
-                    """
+        if not target_business: 
+            st.warning("사업명을 입력하거나 선택해주세요.")
+        else:
+            with st.spinner(f"'{target_business}' 지원 혜택 분석 및 실전용 사업계획서 작성 중..."):
+                
+                # 💡 [핵심 1] 표(df)에서 선택한 사업의 소관기관 데이터를 추출합니다.
+                agency_name = "관할 기관"
+                if 'df' in locals() and not df.empty:
+                    # 선택한 사업명과 일치하는 행을 찾아 소관기관을 가져옵니다.
+                    matched_row = df[df['사업명'] == target_business]
+                    if not matched_row.empty:
+                        agency_name = matched_row.iloc[0].get('소관기관', '관할 기관')
+                
+                # 💡 [핵심 2] 사용자 가입 정보와 소관기관 데이터를 프롬프트에 완벽히 융합합니다.
+                prompt = f"""
+                당신은 정부지원사업 합격률 1위의 전문 사업계획서 컨설턴트입니다.
+                아래 [우리 기업 정보]와 [타겟 지원사업]을 바탕으로, '{agency_name}'의 심사위원들이 가장 선호할 만한 실전용 사업계획서 초안을 작성해주세요.
+                
+                [우리 기업 정보]
+                - 기업/팀명: {st.session_state.get('company_name', '미상')}
+                - 소재지: {st.session_state.get('location', '전국')}
+                - 업종: {st.session_state.get('industry', '미상')}
+                - 핵심 기술: {st.session_state.get('tech_field', '미상')}
+                
+                [타겟 지원사업]
+                - 사업명: {target_business}
+                - 소관기관: {agency_name}
+                
+                [작성 가이드라인]
+                '{agency_name}'의 일반적인 지원 목적, 비전, 심사 기준을 깊이 있게 반영하여 아래 목차대로 작성해주세요. 
+                단순한 추측이 아닌, 해당 업종과 핵심 기술을 어떻게 사업과 연계할지 구체적인 논리를 제시해야 합니다.
+                
+                1. 지원 사업 참여 동기 및 우리 기업 비전과의 적합성
+                2. 보유 기술의 차별성 및 시장 내 경쟁 우위
+                3. 타겟 시장 진입 및 비즈니스 모델(BM) 스케일업 전략
+                4. 지원금 활용 계획 및 구체적 향후 추진 일정
+                """
+                
+                try:
                     background_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
                     response = background_model.generate_content(prompt)
                     st.session_state.report_content = response.text
                     st.session_state.current_target_business = target_business
+                except Exception as e:
+                    st.error(f"보고서 생성 중 오류가 발생했습니다: {e}")
                 
     if "report_content" in st.session_state and "current_target_business" in st.session_state:
         st.markdown(st.session_state.report_content)
