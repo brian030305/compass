@@ -435,19 +435,43 @@ if st.session_state.current_page == '대시보드':
         is_info_set = (ind_str != "선택해주세요" and ind_str != "")
         
         if is_info_set:
-            # 1. 기존 기업마당 데이터 호출 및 컬럼명 정리
-            biz_df = fetch_bizinfo_api()
-            if not biz_df.empty and 'pblancNm' in biz_df.columns:
-                biz_df = biz_df.rename(columns={'pblancNm': '사업명', 'pancInsttNm': '소관기관', 'reqstBeginDe': '접수시작일', 'reqstEndDe': '마감일', 'areaNm': '지역'})
+            # 1. 연동할 3대 핵심 API 리스트 구성
+            api_functions = [
+                fetch_bizinfo_api, 
+                fetch_kstartup_data, 
+                fetch_msit_rd_data  
+            ]
             
-            # 2. 신규 K-Startup 데이터 호출
-            k_df = fetch_kstartup_data()
+            collected_dfs = []
             
-            # 3. 두 데이터를 하나로 병합
-            df = pd.concat([d for d in [biz_df, k_df] if not d.empty], ignore_index=True)
+            # 2. 모든 데이터를 순회하며 수집 및 정제
+            for func in api_functions:
+                try:
+                    temp_df = func()
+                    if not temp_df.empty:
+                        # 기업마당 전용 영어 키값을 한글로 통일
+                        if 'pblancNm' in temp_df.columns and '사업명' not in temp_df.columns:
+                            temp_df = temp_df.rename(columns={
+                                'pblancNm': '사업명', 'pancInsttNm': '소관기관',
+                                'reqstBeginDe': '접수시작일', 'reqstEndDe': '마감일',
+                                'pblancUrl': '상세링크', 'areaNm': '지역'
+                            })
+                        
+                        # 에러 방지: '사업명' 컬럼이 무사히 존재하는 데이터만 리스트에 추가
+                        if '사업명' in temp_df.columns:
+                            temp_df = temp_df.dropna(subset=['사업명'])
+                            collected_dfs.append(temp_df)
+                except Exception as e:
+                    print(f"{func.__name__} 로드 실패: {e}")
+            
+            # 3. 하나의 거대한 데이터프레임으로 병합
+            if collected_dfs:
+                df = pd.concat(collected_dfs, ignore_index=True)
+                df = df.fillna('') 
+            else:
+                df = pd.DataFrame()
             
             if not df.empty:
-                # 🚨 여기 두 줄을 안쪽으로 들여쓰기 해야 합니다!
                 if '마감일' not in df.columns: df['마감일'] = ''
                 if '접수시작일' not in df.columns: df['접수시작일'] = ''
                 
@@ -728,37 +752,34 @@ elif st.session_state.current_page == 'AI 매칭':
     if st.button("🚀 실시간 공고 리스트 및 AI 추천 분석 불러오기", type="primary"):
         with st.spinner("서버에서 공고를 수집하고, AI가 귀사에 가장 적합한 사업을 정밀 분석 중입니다... (약 5~10초 소요)"):
             
-            # 1. 기존 기업마당 데이터 호출 및 컬럼명 정리
-            biz_df = fetch_bizinfo_api()
-            if not biz_df.empty and 'pblancNm' in biz_df.columns:
-                biz_df = biz_df.rename(columns={
-                    'pblancNm': '사업명',
-                    'pancInsttNm': '소관기관',
-                    'reqstBeginDe': '접수시작일',
-                    'reqstEndDe': '마감일',
-                    'pblancUrl': '상세링크',
-                    'areaNm': '지역' 
-                })
-                
-            # 2. 신규 K-Startup 데이터 호출
-            k_df = fetch_kstartup_data()
+            api_functions = [
+                fetch_bizinfo_api, 
+                fetch_kstartup_data, 
+                fetch_msit_rd_data  
+            ]
             
-            # 3. 두 데이터를 하나로 병합
-            # 🚨 (수정됨) 중복으로 다시 데이터를 불러오던 코드를 삭제했습니다.
-
-            # 두 데이터의 컬럼을 완전히 일치시키기
-            if not k_df.empty and not biz_df.empty:
-                # biz_df에 있는데 k_df에 없는 컬럼은 빈 값으로 채움
-                for col in biz_df.columns:
-                    if col not in k_df.columns:
-                        k_df[col] = ''
+            collected_dfs = []
+            for func in api_functions:
+                try:
+                    temp_df = func()
+                    if not temp_df.empty:
+                        if 'pblancNm' in temp_df.columns and '사업명' not in temp_df.columns:
+                            temp_df = temp_df.rename(columns={
+                                'pblancNm': '사업명', 'pancInsttNm': '소관기관',
+                                'reqstBeginDe': '접수시작일', 'reqstEndDe': '마감일',
+                                'pblancUrl': '상세링크', 'areaNm': '지역'
+                            })
+                        if '사업명' in temp_df.columns:
+                            temp_df = temp_df.dropna(subset=['사업명'])
+                            collected_dfs.append(temp_df)
+                except Exception as e:
+                    pass
             
-            # 비어있지 않은 데이터만 모아서 병합
-            df = pd.concat([d for d in [biz_df, k_df] if not d.empty], ignore_index=True)
-            
-            # 마지막으로 사업명이 없는(None) 행을 과감하게 제거 (에러 방어 코드 추가)
-            if not df.empty and '사업명' in df.columns:
-                df = df.dropna(subset=['사업명'])
+            if collected_dfs:
+                df = pd.concat(collected_dfs, ignore_index=True)
+                df = df.fillna('')
+            else:
+                df = pd.DataFrame()
             
             if df.empty:
                 st.warning("서버에서 불러올 수 있는 실시간 공고가 없거나 API 키를 확인해주세요.")
