@@ -743,20 +743,21 @@ elif st.session_state.current_page == 'AI 매칭':
             k_df = fetch_kstartup_data()
             
             # 3. 두 데이터를 하나로 병합
-            biz_df = fetch_bizinfo_api() # 이미 사업명, 소관기관 등 컬럼이 정리된 상태
-            k_df = fetch_kstartup_data()
+            # 🚨 (수정됨) 중복으로 다시 데이터를 불러오던 코드를 삭제했습니다.
 
             # 두 데이터의 컬럼을 완전히 일치시키기
-            if not k_df.empty:
+            if not k_df.empty and not biz_df.empty:
                 # biz_df에 있는데 k_df에 없는 컬럼은 빈 값으로 채움
                 for col in biz_df.columns:
                     if col not in k_df.columns:
                         k_df[col] = ''
             
-            df = pd.concat([biz_df, k_df], ignore_index=True)
-            # 마지막으로 사업명이 없는(None) 행을 과감하게 제거
-            df = df.dropna(subset=['사업명'])
-
+            # 비어있지 않은 데이터만 모아서 병합
+            df = pd.concat([d for d in [biz_df, k_df] if not d.empty], ignore_index=True)
+            
+            # 마지막으로 사업명이 없는(None) 행을 과감하게 제거 (에러 방어 코드 추가)
+            if not df.empty and '사업명' in df.columns:
+                df = df.dropna(subset=['사업명'])
             
             if df.empty:
                 st.warning("서버에서 불러올 수 있는 실시간 공고가 없거나 API 키를 확인해주세요.")
