@@ -6,6 +6,8 @@ import io
 import re
 import time
 import hashlib
+import requests
+import json
 from docx import Document
 from data_manager import get_oracle_engine, get_sqlalchemy_engine, admin_fetch_all_users, admin_delete_user, admin_change_user_password
 from datetime import datetime, timedelta
@@ -13,7 +15,7 @@ from data_manager import (
     fetch_safety_cert_data, fetch_mss_data, fetch_ktl_data,
     fetch_kiat_data, fetch_keit_min_data, fetch_keit_rd_data,
     fetch_national_business_api, fetch_local_keit_announcement, 
-    fetch_mss_tech_cert_api, fetch_bizinfo_api
+    fetch_mss_tech_cert_api, fetch_bizinfo_api, fetch_kstartup_data
 )
 
 # 1. 기본 설정
@@ -53,6 +55,40 @@ def check_hashes(password, hashed_text):
     if make_hashes(password) == hashed_text:
         return True
     return False
+
+if 'business_verified' not in st.session_state:
+    st.session_state.business_verified = False
+if 'verified_no' not in st.session_state:
+    st.session_state.verified_no = ""
+
+def verify_business_number(b_no, service_key):
+    """국세청 사업자등록상태조회 API 호출 함수"""
+    url = f"https://api.odcloud.kr/api/nts-businessman/v1/status?serviceKey={service_key}"
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    payload = {"b_no": [b_no]}
+    
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(payload), timeout=5)
+        if response.status_code == 200:
+            result = response.json()
+            if "data" in result and len(result["data"]) > 0:
+                business_info = result["data"][0]
+                status_code = business_info.get("b_stt_cd", "")
+                status_text = business_info.get("b_stt", "등록되지 않은 번호")
+                tax_type = business_info.get("tax_type", "")
+                
+                if status_code == "01":
+                    return True, f"인증 성공: {tax_type} (정상 영업 중)"
+                elif status_code in ["02", "03"]:
+                    return False, f"인증 실패: 현재 {status_text} 상태입니다."
+                else:
+                    return False, "인증 실패: 국세청에 등록되지 않은 번호입니다."
+            else:
+                return False, "API 응답 오류"
+        else:
+            return False, f"API 서버 오류 (코드: {response.status_code})"
+    except Exception as e:
+        return False, f"연결 오류: {str(e)}"
 
 # 로그인이 안 되어 있을 때 제어 화면 표시
 if not st.session_state.logged_in:
@@ -117,13 +153,44 @@ if not st.session_state.logged_in:
 
     # --- [회원가입 탭] ---
     with tab2:
+        st.markdown("#### 🏢 1. 사업자등록번호 인증 (필수)")
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            biz_no_input = st.text_input("사업자등록번호 입력", max_chars=12, placeholder="하이픈(-) 제외 10자리 숫자 입력", key="biz_input")
+        with col2:
+            st.write("") 
+            st.write("")
+            verify_btn = st.button("🔍 실시간 인증", use_container_width=True)
+            
+        if verify_btn:
+            clean_no = biz_no_input.replace("-", "")
+            if len(clean_no) != 10 or not clean_no.isdigit():
+                st.error("사업자등록번호는 10자리 숫자여야 합니다.")
+            else:
+                with st.spinner("국세청 서버 실시간 조회 중..."):
+                    # 🚨 공공데이터포털에서 발급받은 일반 인증키(Decoding)를 아래 문자열 안에 붙여넣으세요!
+                    NTS_SERVICE_KEY = "여기에_발급받은_인증키를_붙여넣으세요"
+                    
+                    is_valid, msg = verify_business_number(clean_no, NTS_SERVICE_KEY)
+                    
+                    if is_valid:
+                        st.session_state.business_verified = True
+                        st.session_state.verified_no = clean_no
+                        st.success(msg)
+                    else:
+                        st.session_state.business_verified = False
+                        st.session_state.verified_no = ""
+                        st.error(msg)
+                        
+        if st.session_state.get('business_verified', False):
+            st.info(f"✅ 인증 완료된 사업자: {st.session_state.verified_no}")
+            
         with st.form("signup_form"):
-            st.markdown("#### 1. 계정 정보")
+            st.markdown("#### 👤 2. 기업 초기 세팅 정보")
             signup_id = st.text_input("아이디 (기업명)", placeholder="예: 창업나침반(주)")
             signup_pw = st.text_input("비밀번호", type='password')
             signup_pw_check = st.text_input("비밀번호 확인", type='password')
-            
-            st.markdown("#### 2. 기업 초기 세팅 정보")
             
             location_options = ["전국", "서울", "경기", "인천", "부산", "대구", "대전", "광주", "울산", "세종", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주"]
             signup_location = st.selectbox("기업 소재지(지역)", location_options)
@@ -136,7 +203,10 @@ if not st.session_state.logged_in:
             signup_btn = st.form_submit_button("✅ 가입 완료 및 시작하기", type="primary", use_container_width=True)
             
         if signup_btn:
-            if signup_id == "" or signup_pw == "":
+            # 🚨 신규 로직: 사업자 인증을 안했으면 가입 거부
+            if not st.session_state.get('business_verified', False):
+                st.warning("⚠️ 위쪽에서 사업자등록번호 실시간 인증을 먼저 완료해주세요.")
+            elif signup_id == "" or signup_pw == "":
                 st.warning("아이디(기업명)와 비밀번호는 필수 입력 사항입니다.")
             elif signup_pw != signup_pw_check:
                 st.warning("비밀번호가 일치하지 않습니다.")
@@ -156,7 +226,6 @@ if not st.session_state.logged_in:
                 
                 updated_df = pd.concat([users_df, new_user], ignore_index=True)
                 
-                # 오라클 DB에 새 회원 정보 영구 저장
                 engine = get_sqlalchemy_engine()
                 updated_df.to_sql('users_tb', engine, if_exists='replace', index=False)
                 
