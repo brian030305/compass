@@ -379,15 +379,40 @@ with st.sidebar:
     st.divider()
    
 
-# 3. AI 및 데이터 처리 로직 (캐싱 적용)
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+# ==========================================
+# 💡 [핵심 3] AI 챗봇 토큰 과부하 방지 및 맞춤형 필터링 함수
+# ==========================================
+def filter_df_for_chatbot(df):
+    """데이터 전체를 던지지 않고, 사용자의 키워드로 필터링하여 상위 10개만 AI에게 전달합니다."""
+    if df is None or df.empty:
+        return "데이터 없음"
+        
+    ind_str = st.session_state.get('industry', '선택해주세요')
+    tech_str = st.session_state.get('tech_field', '')
+    
+    # 기업의 핵심 키워드(기술 분야 또는 업종)를 기준으로 잡습니다.
+    keyword = tech_str if tech_str else (ind_str if ind_str != "선택해주세요" else "")
+    
+    if keyword:
+        # 데이터프레임 전체에서 해당 키워드가 포함된 행만 솎아냅니다.
+        mask = df.apply(lambda row: row.astype(str).str.contains(keyword, case=False).any(), axis=1)
+        filtered_df = df[mask]
+    else:
+        filtered_df = df
+        
+    if filtered_df.empty:
+        return f"'{keyword}' 관련 데이터 없음"
+        
+    # AI가 읽다 지치지 않도록(토큰 과부하 방지) 핵심 데이터 상위 10개만 텍스트로 넘깁니다.
+    return filtered_df.head(10).to_string()
 
-def search_safety_cert(): return fetch_safety_cert_data().to_string() if not fetch_safety_cert_data().empty else "데이터 없음"
-def search_mss_support(): return fetch_mss_data().to_string() if not fetch_mss_data().empty else "데이터 없음"
-def search_ktl_test(): return fetch_ktl_data().to_string() if not fetch_ktl_data().empty else "데이터 없음"
-def search_kiat_worldclass(): return fetch_kiat_data().to_string() if not fetch_kiat_data().empty else "데이터 없음"
-def search_keit_ministry(): return fetch_keit_min_data().to_string() if not fetch_keit_min_data().empty else "데이터 없음"
-def search_keit_rnd(): return fetch_keit_rd_data().to_string() if not fetch_keit_rd_data().empty else "데이터 없음"
+# 챗봇이 데이터를 요청할 때 위 필터링 함수를 거치도록 수정합니다.
+def search_safety_cert(): return filter_df_for_chatbot(fetch_safety_cert_data())
+def search_mss_support(): return filter_df_for_chatbot(fetch_mss_data())
+def search_ktl_test(): return filter_df_for_chatbot(fetch_ktl_data())
+def search_kiat_worldclass(): return filter_df_for_chatbot(fetch_kiat_data())
+def search_keit_ministry(): return filter_df_for_chatbot(fetch_keit_min_data())
+def search_keit_rnd(): return filter_df_for_chatbot(fetch_keit_rd_data())
 
 tools_list = [search_safety_cert, search_mss_support, search_ktl_test, search_kiat_worldclass, search_keit_ministry, search_keit_rnd]
 
