@@ -694,13 +694,11 @@ if st.session_state.current_page == '대시보드':
             st.markdown("---")
             st.subheader("🛡️ 전용 계정 관리 시스템")
             
-            # 💡 [핵심 수정] 예전 함수 대신 직접 DB에서 모든 컬럼을 안전하게 불러옵니다.
             try:
                 conn = get_oracle_engine()
                 all_users_df = pd.read_sql("SELECT * FROM users_tb", conn)
-                all_users_df.columns = all_users_df.columns.str.upper() # 대소문자 방어
+                all_users_df.columns = all_users_df.columns.str.upper() 
                 
-                # 혹시라도 DB에 ROLE 컬럼이 누락되어 있으면 에러 대신 임시로 USER를 채워 넣음 (에러 원천 차단)
                 if 'ROLE' not in all_users_df.columns:
                     all_users_df['ROLE'] = 'USER'
             except Exception as e:
@@ -708,21 +706,22 @@ if st.session_state.current_page == '대시보드':
                 all_users_df = pd.DataFrame()
             
             if not all_users_df.empty:
-                # 권한에 따른 데이터 기본 필터링
+                # 💡 [보안 완벽 차단] 데이터를 불러오자마자 PW 컬럼을 메모리에서 영구 삭제합니다.
+                if 'PW' in all_users_df.columns:
+                    all_users_df = all_users_df.drop(columns=['PW'])
+                
                 if user_role == 'SUPER_ADMIN':
                     st.write("최고 관리자 권한으로 가입된 **모든 기업의 전체 회원 목록**을 관리합니다.")
                     display_df = all_users_df 
-                else: # COMPANY_MASTER 인 경우
-                    st.write(f"기업 마스터 권한으로 소속된 **'{company_name}'**의 계정만 관리할 수 있습니다.")
-                    display_df = all_users_df[all_users_df['COMPANY'] == company_name]
+                else: 
+                    st.write(f"기업 마스터 권한으로 소속된 **'{st.session_state.get('company_name', '')}'**의 계정만 관리할 수 있습니다.")
+                    display_df = all_users_df[all_users_df['COMPANY'] == st.session_state.get('company_name', '')]
                 
-                # 기업 마스터인데 직원(USER)이 0명이면 화면 숨기기
                 manageable_users = display_df[display_df['ROLE'] == 'USER']
                 
                 if user_role == 'COMPANY_MASTER' and manageable_users.empty:
                     st.info("아직 가입한 소속 직원(하위 계정)이 없습니다.")
                 else:
-                    # 직원이 있거나 최고관리자인 경우에만 검색창, 표, 삭제 기능을 1번만 렌더링
                     search_term = st.text_input("🔍 검색할 회원 ID 또는 기업명을 입력하세요", "")
                     if search_term:
                         display_df = display_df[
@@ -730,19 +729,17 @@ if st.session_state.current_page == '대시보드':
                             display_df['COMPANY'].astype(str).str.contains(search_term, case=False, na=False)
                         ]
                     
-                    safe_display_df = display_df.drop(columns=['PW'], errors='ignore')
-                    st.dataframe(safe_display_df, use_container_width=True)
+                    # 이제 display_df에는 PW가 절대 존재할 수 없으므로 안전하게 출력됩니다.
+                    st.dataframe(display_df, use_container_width=True)
                     
                     st.markdown("### ⚠️ 계정 제어 및 관리")
                     col1, col2 = st.columns([3, 1])
                     
                     with col1:
                         if user_role == 'COMPANY_MASTER':
-                            # 기업 마스터는 일반 USER 등급만 필터링하여 드롭다운에 노출
                             deletion_df = display_df[display_df['ROLE'] == 'USER']
                             user_list = deletion_df['ID'].tolist()
                         else:
-                            # 최고 관리자는 본인 제외 모든 계정 노출
                             user_list = display_df['ID'].tolist()
                             if 'admin' in user_list: user_list.remove('admin')
                             
@@ -754,7 +751,6 @@ if st.session_state.current_page == '대시보드':
                         st.write("") 
                         delete_confirm_btn = st.button("❌ 선택 계정 삭제", type="primary", use_container_width=True)
                         
-                    # [삭제 로직]
                     if delete_confirm_btn and selected_target_id:
                         if selected_target_id == "계정을 선택해주세요":
                             st.warning("⚠️ 삭제할 계정을 먼저 선택해 주세요.")
@@ -765,7 +761,6 @@ if st.session_state.current_page == '대시보드':
                                     time.sleep(1.5)
                                     st.rerun()
                                     
-                    # [비밀번호 변경 로직]
                     with st.form(key="admin_pw_form"):
                         st.markdown("### 🔑 비밀번호 강제 변경")
                         pw_col1, pw_col2 = st.columns([3, 1])
