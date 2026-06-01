@@ -351,7 +351,7 @@ def edit_company_profile():
 
 # 2. 사이드바 메뉴
 with st.sidebar:
-    st.markdown(f"**환영합니다, {st.session_state.get('company_name', '고객')}님!**")
+    st.markdown(f"**환영합니다, {st.session_state.get('user_id', '고객')}님!**")
     if st.button("🚪 로그아웃", use_container_width=True):
         st.session_state["logged_in"] = False
         st.query_params.clear() 
@@ -704,6 +704,23 @@ if st.session_state.current_page == '대시보드':
                 else: # COMPANY_MASTER 인 경우
                     st.write(f"기업 마스터 권한으로 소속된 **'{company_name}'**의 계정만 관리할 수 있습니다.")
                     display_df = all_users_df[all_users_df['COMPANY'] == company_name]
+                
+                # 💡 [여기서부터 추가/수정] 기업 마스터인데 직원(USER)이 0명이면 화면 숨기기
+                manageable_users = display_df[display_df['ROLE'] == 'USER']
+                
+                if user_role == 'COMPANY_MASTER' and manageable_users.empty:
+                    st.info("아직 가입한 소속 직원(하위 계정)이 없습니다.")
+                else:
+                    # 직원이 있거나 최고관리자인 경우에만 검색창, 표, 삭제 기능 등을 렌더링
+                    search_term = st.text_input("🔍 검색할 회원 ID 또는 기업명을 입력하세요", "")
+                    if search_term:
+                        display_df = display_df[
+                            display_df['ID'].astype(str).str.contains(search_term, case=False, na=False) |
+                            display_df['COMPANY'].astype(str).str.contains(search_term, case=False, na=False)
+                        ]
+                    
+                    st.dataframe(display_df, use_container_width=True)
+                
                 
                 # 💡 [요청사항 3] 실시간 계정 검색 기능 추가
                 search_term = st.text_input("🔍 검색할 회원 ID 또는 기업명을 입력하세요", "")
