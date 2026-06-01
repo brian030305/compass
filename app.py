@@ -190,8 +190,10 @@ if not st.session_state.logged_in:
             
         with st.form("signup_form"):
             st.markdown("#### 👤 2. 기업 초기 세팅 정보")
-            # 예비창업자를 배려하여 Placeholder 문구를 수정했습니다.
-            signup_id = st.text_input("아이디 (기업명 또는 팀명/가칭)", placeholder="예: 창업나침반(주) 또는 예비창업팀 알파")
+            # 👇 아이디와 기업명을 따로 입력받도록 2칸으로 분리합니다.
+            signup_id = st.text_input("로그인 아이디", placeholder="예: test, test2, apple_marketing")
+            signup_company = st.text_input("소속 기업명 (또는 팀명)", placeholder="예: test, 애플코리아(주)")
+            
             signup_pw = st.text_input("비밀번호", type='password')
             signup_pw_check = st.text_input("비밀번호 확인", type='password')
             
@@ -218,10 +220,11 @@ if not st.session_state.logged_in:
                 new_user = pd.DataFrame([{
                     "ID": signup_id, 
                     "PW": hashed_pw, 
-                    "COMPANY": signup_id,
+                    "COMPANY": signup_company, # 👈 분리해서 입력받은 기업명 변수로 교체
                     "LOCATION": signup_location,
                     "INDUSTRY": signup_industry,
                     "TECH": signup_tech,
+                    "BIZ_NO": st.session_state.get("verified_no", ""), # 👈 인증된 사업자번호 컬럼 추가! (인증 안했으면 빈칸)
                     "CREATED_AT": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }])
                 
