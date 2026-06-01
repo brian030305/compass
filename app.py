@@ -722,15 +722,16 @@ if st.session_state.current_page == '대시보드':
                 if user_role == 'COMPANY_MASTER' and manageable_users.empty:
                     st.info("아직 가입한 소속 직원(하위 계정)이 없습니다.")
                 else:
-                    # 💡 [중복 제거 완료] 직원이 있거나 최고관리자인 경우에만 검색창, 표, 삭제 기능을 1번만 렌더링
+                    # 직원이 있거나 최고관리자인 경우에만 검색창, 표, 삭제 기능을 1번만 렌더링
                     search_term = st.text_input("🔍 검색할 회원 ID 또는 기업명을 입력하세요", "")
                     if search_term:
                         display_df = display_df[
                             display_df['ID'].astype(str).str.contains(search_term, case=False, na=False) |
                             display_df['COMPANY'].astype(str).str.contains(search_term, case=False, na=False)
                         ]
+                    
                     safe_display_df = display_df.drop(columns=['PW'], errors='ignore')
-                    st.dataframe(display_df, use_container_width=True)
+                    st.dataframe(safe_display_df, use_container_width=True)
                     
                     st.markdown("### ⚠️ 계정 제어 및 관리")
                     col1, col2 = st.columns([3, 1])
