@@ -354,35 +354,77 @@ with st.sidebar:
    
 
 # ==========================================
-# 💡 [핵심 3] AI 챗봇 토큰 과부하 방지 및 맞춤형 필터링 함수
+# 💡 [핵심 3] AI 챗봇 토큰 과부하 방지 및 능동형 필터링 함수
 # ==========================================
-def filter_df_for_chatbot(df):
+def filter_df_for_chatbot(df, search_query: str = ""):
     if df is None or df.empty: return "데이터 없음"
-    ind_str = st.session_state.get('industry', '선택해주세요')
-    tech_str = st.session_state.get('tech_field', '')
-    keyword = tech_str if tech_str else (ind_str if ind_str != "선택해주세요" else "")
     
-    if keyword:
-        mask = df.apply(lambda row: row.astype(str).str.contains(keyword, case=False).any(), axis=1)
-        filtered_df = df[mask]
-    else:
+    # 1. AI가 사용자의 문맥을 읽고 '전체'를 요청한 경우 강제 필터링 해제
+    if search_query in ["전체", "상관없음", "all"]:
         filtered_df = df
         
-    if filtered_df.empty: return f"'{keyword}' 관련 데이터 없음"
+    # 2. AI가 특정 키워드(예: 마케팅, R&D)를 요청한 경우
+    elif search_query:
+        mask = df.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)
+        filtered_df = df[mask]
+        
+    # 3. 평상시 기본 상태 (사용자 가입 정보 맞춤형 필터링 유지)
+    else:
+        ind_str = st.session_state.get('industry', '선택해주세요')
+        tech_str = st.session_state.get('tech_field', '')
+        keyword = tech_str if tech_str else (ind_str if ind_str != "선택해주세요" else "")
+        
+        if keyword:
+            mask = df.apply(lambda row: row.astype(str).str.contains(keyword, case=False).any(), axis=1)
+            filtered_df = df[mask]
+        else:
+            filtered_df = df
+            
+    if filtered_df.empty: return f"'{search_query}' 관련 데이터 없음"
     return filtered_df.head(10).to_string()
 
-def search_safety_cert(): return filter_df_for_chatbot(fetch_safety_cert_data())
-def search_mss_support(): return filter_df_for_chatbot(fetch_mss_data())
-def search_ktl_test(): return filter_df_for_chatbot(fetch_ktl_data())
-def search_kiat_worldclass(): return filter_df_for_chatbot(fetch_kiat_data())
-def search_keit_ministry(): return filter_df_for_chatbot(fetch_keit_min_data())
-def search_keit_rnd(): return filter_df_for_chatbot(fetch_keit_rd_data())
-def search_bizinfo(): return filter_df_for_chatbot(fetch_bizinfo_api())
-def search_kstartup(): return filter_df_for_chatbot(fetch_kstartup_data())
-def search_msit_rd(): return filter_df_for_chatbot(fetch_msit_rd_data())
+# 👇 AI가 직접 검색어를 입력할 수 있도록 매개변수(query)와 설명서를 추가합니다.
+def search_safety_cert(query: str = ""):
+    """안전 인증 관련 데이터를 검색. 전체 데이터를 원하면 query에 '전체' 입력"""
+    return filter_df_for_chatbot(fetch_safety_cert_data(), query)
+    
+def search_mss_support(query: str = ""):
+    """중소벤처기업부 데이터를 검색. 전체 데이터를 원하면 query에 '전체' 입력"""
+    return filter_df_for_chatbot(fetch_mss_data(), query)
+    
+def search_ktl_test(query: str = ""):
+    """KTL 시험인증 데이터를 검색. 전체 데이터를 원하면 query에 '전체' 입력"""
+    return filter_df_for_chatbot(fetch_ktl_data(), query)
+    
+def search_kiat_worldclass(query: str = ""):
+    """KIAT 데이터를 검색. 전체 데이터를 원하면 query에 '전체' 입력"""
+    return filter_df_for_chatbot(fetch_kiat_data(), query)
+    
+def search_keit_ministry(query: str = ""):
+    """KEIT 부처 소관 사업 검색. 전체 데이터를 원하면 query에 '전체' 입력"""
+    return filter_df_for_chatbot(fetch_keit_min_data(), query)
+    
+def search_keit_rnd(query: str = ""):
+    """KEIT R&D 지원사업 검색. 전체 데이터를 원하면 query에 '전체' 입력"""
+    return filter_df_for_chatbot(fetch_keit_rd_data(), query)
 
-tools_list = [search_safety_cert, search_mss_support, search_ktl_test, search_kiat_worldclass,
-              search_keit_ministry, search_keit_rnd, search_bizinfo, search_kstartup, search_msit_rd]
+def search_bizinfo(query: str = ""):
+    """기업마당 최신 지원사업 검색. 전체 데이터를 원하면 query에 '전체' 입력"""
+    return filter_df_for_chatbot(fetch_bizinfo_api(), query)
+    
+def search_kstartup(query: str = ""):
+    """K-Startup 최신 지원사업 검색. 전체 데이터를 원하면 query에 '전체' 입력"""
+    return filter_df_for_chatbot(fetch_kstartup_data(), query)
+    
+def search_msit_rd(query: str = ""):
+    """과기부 최신 지원사업 검색. 전체 데이터를 원하면 query에 '전체' 입력"""
+    return filter_df_for_chatbot(fetch_msit_rd_data(), query)
+
+tools_list = [
+    search_safety_cert, search_mss_support, search_ktl_test, 
+    search_kiat_worldclass, search_keit_ministry, search_keit_rnd,
+    search_bizinfo, search_kstartup, search_msit_rd
+]
 
 @st.cache_data(ttl=600)
 def get_ai_classified_data():
