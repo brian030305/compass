@@ -377,8 +377,12 @@ def search_ktl_test(): return filter_df_for_chatbot(fetch_ktl_data())
 def search_kiat_worldclass(): return filter_df_for_chatbot(fetch_kiat_data())
 def search_keit_ministry(): return filter_df_for_chatbot(fetch_keit_min_data())
 def search_keit_rnd(): return filter_df_for_chatbot(fetch_keit_rd_data())
+def search_bizinfo(): return filter_df_for_chatbot(fetch_bizinfo_api())
+def search_kstartup(): return filter_df_for_chatbot(fetch_kstartup_data())
+def search_msit_rd(): return filter_df_for_chatbot(fetch_msit_rd_data())
 
-tools_list = [search_safety_cert, search_mss_support, search_ktl_test, search_kiat_worldclass, search_keit_ministry, search_keit_rnd]
+tools_list = [search_safety_cert, search_mss_support, search_ktl_test, search_kiat_worldclass,
+              search_keit_ministry, search_keit_rnd, search_bizinfo, search_kstartup, search_msit_rd]
 
 @st.cache_data(ttl=600)
 def get_ai_classified_data():
