@@ -191,8 +191,8 @@ if not st.session_state.logged_in:
         with st.form("signup_form"):
             st.markdown("#### 👤 2. 기업 초기 세팅 정보")
             # 👇 아이디와 기업명을 따로 입력받도록 2칸으로 분리합니다.
-            signup_id = st.text_input("로그인 아이디", placeholder="예: test, test2, apple_marketing")
-            signup_company = st.text_input("소속 기업명 (또는 팀명)", placeholder="예: test, 애플코리아(주)")
+            signup_id = st.text_input("로그인 아이디", placeholder="예: 스타트업_개발, 스타트업_마케팅")
+            signup_company = st.text_input("소속 기업명 (또는 팀명)", placeholder="예: 스타트업")
             
             signup_pw = st.text_input("비밀번호", type='password')
             signup_pw_check = st.text_input("비밀번호 확인", type='password')
