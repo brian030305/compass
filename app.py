@@ -208,23 +208,36 @@ if not st.session_state.logged_in:
             signup_btn = st.form_submit_button("✅ 가입 완료 및 시작하기", type="primary", use_container_width=True)
             
         if signup_btn:
-            # 🚨 [핵심 수정] 사업자 인증 강제 검사(if not business_verified...) 로직을 완전히 삭제했습니다!
-            if signup_id == "" or signup_pw == "":
-                st.warning("아이디(기업명/팀명)와 비밀번호는 필수 입력 사항입니다.")
+            if signup_id == "" or signup_pw == "" or signup_company == "":
+                st.warning("로그인 아이디, 소속 기업명, 비밀번호는 필수 입력 사항입니다.")
             elif signup_pw != signup_pw_check:
                 st.warning("비밀번호가 일치하지 않습니다.")
             elif signup_id in users_df['ID'].astype(str).values:
-                st.error("이미 존재하는 아이디(기업명)입니다. 다른 이름을 사용해주세요.")
+                st.error("이미 존재하는 로그인 아이디입니다. 다른 아이디를 사용해주세요.")
             else:
+                # 💡 [핵심 논리] 기존에 가입된 같은 기업(COMPANY)이 있는지 검사합니다.
+                existing_company_users = users_df[users_df['COMPANY'] == signup_company]
+                
+                if not existing_company_users.empty:
+                    # 1. 이미 누군가(마스터)가 가입한 기업인 경우 -> 일반 USER 부여 및 업종 강제 상속
+                    assigned_role = "USER"
+                    final_industry = existing_company_users.iloc[0]['INDUSTRY'] # 마스터의 업종을 그대로 가져옴
+                    st.toast(f"🏢 이미 등록된 기업입니다. 마스터 계정의 설정에 따라 '{final_industry}' 업종으로 자동 통합됩니다.")
+                else:
+                    # 2. 이 기업 이름으로 처음 가입하는 경우 -> COMPANY_MASTER 부여
+                    assigned_role = "SUPER_ADMIN" if signup_id == 'admin' else "COMPANY_MASTER"
+                    final_industry = signup_industry
+
                 hashed_pw = make_hashes(signup_pw)
                 new_user = pd.DataFrame([{
                     "ID": signup_id, 
                     "PW": hashed_pw, 
-                    "COMPANY": signup_company, # 👈 분리해서 입력받은 기업명 변수로 교체
+                    "COMPANY": signup_company, 
                     "LOCATION": signup_location,
-                    "INDUSTRY": signup_industry,
+                    "INDUSTRY": final_industry, # 👈 마스터의 업종이거나, 본인이 선택한 업종으로 최종 저장
                     "TECH": signup_tech,
-                    "BIZ_NO": st.session_state.get("verified_no", ""), # 👈 인증된 사업자번호 컬럼 추가! (인증 안했으면 빈칸)
+                    "BIZ_NO": st.session_state.get("verified_no", ""), 
+                    "ROLE": assigned_role,      # 👈 계정의 권한(등급) 컬럼 추가!
                     "CREATED_AT": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }])
                 
@@ -235,12 +248,13 @@ if not st.session_state.logged_in:
                 
                 st.session_state.logged_in = True
                 st.session_state.user_id = signup_id
-                st.session_state.company_name = signup_id
+                st.session_state.company_name = signup_company # 세션에도 정확한 기업명 저장
                 st.session_state.location = signup_location
-                st.session_state.industry = signup_industry
+                st.session_state.industry = final_industry
                 st.session_state.tech_field = signup_tech
+                st.session_state.role = assigned_role # 현재 로그인한 사람의 권한 저장
                 
-                st.success(f"🎉 {signup_id}님, 회원가입이 완료되었습니다! 즉시 대시보드를 시작합니다.")
+                st.success(f"🎉 회원가입이 완료되었습니다! 부여된 권한: {assigned_role}")
                 st.rerun()
                 
     st.stop()
@@ -668,86 +682,84 @@ if st.session_state.current_page == '대시보드':
             st.info("💡 좌측 사이드바에서 기업 정보를 설정하시면 맞춤형 지원사업 알림과 생존율 진단을 받아보실 수 있습니다.")
     
         # =========================================================
-        # 관리자 코드 👇
+        # 🛡️ RBAC (역할 기반 권한 제어) 관리자 대시보드 👇
         # =========================================================
-        if st.session_state.get('user_id') == 'admin':
+        user_role = st.session_state.get('role', 'USER')
+        
+        # 1. 관리자 권한(최고관리자 또는 기업마스터)이 있는 경우에만 표출
+        if user_role in ['SUPER_ADMIN', 'COMPANY_MASTER']:
             st.markdown("---")
-            st.subheader("🛡️ 서버 관리자 전용 계정 관리 시스템")
-            st.write("현재 오라클 클라우드 DB에 가입된 전체 회원 목록입니다. 부적절한 계정을 관리할 수 있습니다.")
+            st.subheader("🛡️ 전용 계정 관리 시스템")
             
-            # 1. 전체 회원 데이터 불러오기
+            # 전체 사용자 데이터 불러오기
             all_users_df = admin_fetch_all_users()
             
             if not all_users_df.empty:
-                # 화면에 표 형태로 깔끔하게 출력
-                st.dataframe(all_users_df, use_container_width=True)
+                # 💡 [핵심] 권한에 따른 데이터 필터링
+                if user_role == 'SUPER_ADMIN':
+                    st.write("최고 관리자 권한으로 가입된 **모든 기업의 전체 회원 목록**을 관리합니다.")
+                    display_df = all_users_df 
+                else: # COMPANY_MASTER 인 경우
+                    st.write(f"기업 마스터 권한으로 소속된 **'{company_name}'**의 계정만 관리할 수 있습니다.")
+                    display_df = all_users_df[all_users_df['COMPANY'] == company_name]
                 
-                # 2. 삭제 기능 UI 구현
-                st.markdown("### ⚠️ 계정 강제 삭제")
+                # 필터링된 데이터만 화면에 출력
+                st.dataframe(display_df, use_container_width=True)
+                
+                st.markdown("### ⚠️ 계정 제어 및 관리")
                 col1, col2 = st.columns([3, 1])
                 
                 with col1:
-                    user_list = all_users_df['ID'].tolist()
-                    if 'admin' in user_list:
-                        user_list.remove('admin')
+                    # 권한에 맞는 사용자(ID) 리스트만 드롭다운에 노출
+                    user_list = display_df['ID'].tolist()
+                    if 'admin' in user_list: user_list.remove('admin')
                         
-                    # 👇 [수정] 리스트 맨 앞에 안내 문구를 추가합니다.
                     delete_options = ["계정을 선택해주세요"] + user_list
-                    selected_delete_id = st.selectbox("삭제할 회원 ID를 선택하세요", delete_options, key="admin_delete_select")
+                    selected_target_id = st.selectbox("관리(삭제/비밀번호 변경)할 회원 ID를 선택하세요", delete_options)
                     
                 with col2:
                     st.write("") 
                     st.write("") 
-                    delete_confirm_btn = st.button("❌ 계정 삭제", type="primary", use_container_width=True)
+                    delete_confirm_btn = st.button("❌ 선택 계정 삭제", type="primary", use_container_width=True)
                     
-                # 👇 [수정] 버튼을 눌렀을 때 안내 문구 상태면 삭제를 막는 조건을 추가합니다.
-                if delete_confirm_btn and selected_delete_id:
-                    if selected_delete_id == "계정을 선택해주세요":
+                # [삭제 로직]
+                if delete_confirm_btn and selected_target_id:
+                    if selected_target_id == "계정을 선택해주세요":
                         st.warning("⚠️ 삭제할 계정을 먼저 선택해 주세요.")
+                    elif user_role == 'COMPANY_MASTER' and selected_target_id == st.session_state.user_id:
+                        st.error("⚠️ 기업 마스터 본인의 계정은 스스로 삭제할 수 없습니다.")
                     else:
-                        with st.spinner(f"'{selected_delete_id}' 계정을 삭제하는 중..."):
-                            if admin_delete_user(selected_delete_id):
-                                st.success(f"🎉 '{selected_delete_id}' 계정이 성공적으로 삭제되었습니다.")
-                                st.rerun()
-            else:
-                st.info("현재 가입된 일반 회원 계정이 없습니다.")
-
-            
-            st.markdown("---")
-            with st.form(key="admin_pw_form"):
-                st.markdown("### 🔑 계정 비밀번호 강제 변경")
-                
-                pw_col1, pw_col2 = st.columns([3, 1])
-                
-                with pw_col1:
-                    # 비밀번호를 변경할 아이디 선택
-                    pw_reset_options = ["계정을 선택해주세요"] + user_list
-                    selected_pw_id = st.selectbox("비밀번호를 변경할 회원 ID를 선택하세요", pw_reset_options)
-                    
-                    # 새 비밀번호 입력 (관리자가 지정)
-                    admin_new_pw = st.text_input("새로운 비밀번호 입력", type="password")
-                    
-                with pw_col2:
-                    st.write("")
-                    st.write("")
-                    st.write("")
-                    st.write("")
-                    # 일반 버튼 대신 폼 전용 버튼(form_submit_button)을 사용합니다.
-                    pw_change_btn = st.form_submit_button("🔄 비밀번호 변경", use_container_width=True)
-                    
-                if pw_change_btn:
-                    if selected_pw_id == "계정을 선택해주세요":
-                        st.warning("⚠️ 비밀번호를 변경할 계정을 먼저 선택해 주세요.")
-                    elif not admin_new_pw:
-                        st.warning("⚠️ 새로운 비밀번호를 입력해 주세요.")
-                    else:
-                        with st.spinner(f"'{selected_pw_id}' 계정의 비밀번호를 변경하는 중..."):
-                            new_hashed_pw = make_hashes(admin_new_pw)
-                            
-                            if admin_change_user_password(selected_pw_id, new_hashed_pw):
-                                st.success(f"🎉 '{selected_pw_id}' 계정의 비밀번호가 성공적으로 변경되었습니다.")
+                        with st.spinner(f"'{selected_target_id}' 계정을 삭제하는 중..."):
+                            if admin_delete_user(selected_target_id):
+                                st.success(f"🎉 '{selected_target_id}' 계정이 성공적으로 삭제되었습니다.")
                                 time.sleep(1.5)
                                 st.rerun()
+                                
+                # [비밀번호 변경 로직]
+                with st.form(key="admin_pw_form"):
+                    st.markdown("### 🔑 비밀번호 강제 변경")
+                    pw_col1, pw_col2 = st.columns([3, 1])
+                    with pw_col1:
+                        admin_new_pw = st.text_input("새로운 비밀번호 입력", type="password")
+                    with pw_col2:
+                        st.write("")
+                        st.write("")
+                        pw_change_btn = st.form_submit_button("🔄 비밀번호 변경", use_container_width=True)
+                        
+                    if pw_change_btn:
+                        if selected_target_id == "계정을 선택해주세요":
+                            st.warning("⚠️ 상단에서 비밀번호를 변경할 계정을 먼저 선택해 주세요.")
+                        elif not admin_new_pw:
+                            st.warning("⚠️ 새로운 비밀번호를 입력해 주세요.")
+                        else:
+                            with st.spinner(f"'{selected_target_id}' 계정의 비밀번호를 변경하는 중..."):
+                                new_hashed_pw = make_hashes(admin_new_pw)
+                                if admin_change_user_password(selected_target_id, new_hashed_pw):
+                                    st.success(f"🎉 '{selected_target_id}' 계정의 비밀번호가 성공적으로 변경되었습니다.")
+                                    time.sleep(1.5)
+                                    st.rerun()
+            else:
+                st.info("현재 관리할 수 있는 계정이 없습니다.")
             
     if st.session_state.show_chatbot:
         with ai_col:
