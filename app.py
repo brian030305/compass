@@ -729,7 +729,7 @@ if st.session_state.current_page == '대시보드':
                             display_df['ID'].astype(str).str.contains(search_term, case=False, na=False) |
                             display_df['COMPANY'].astype(str).str.contains(search_term, case=False, na=False)
                         ]
-                    
+                    safe_display_df = display_df.drop(columns=['PW'], errors='ignore')
                     st.dataframe(display_df, use_container_width=True)
                     
                     st.markdown("### ⚠️ 계정 제어 및 관리")
