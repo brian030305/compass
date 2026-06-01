@@ -127,6 +127,7 @@ if not st.session_state.logged_in:
                     st.session_state.location = str(users_df.at[user_idx, 'LOCATION'])
                     st.session_state.industry = str(users_df.at[user_idx, 'INDUSTRY'])
                     st.session_state.tech_field = str(users_df.at[user_idx, 'TECH'])
+                    st.session_state.role = str(users_df.at[user_idx, 'ROLE']) 
                     
                     st.rerun()
                     
@@ -145,6 +146,7 @@ if not st.session_state.logged_in:
                     st.session_state.location = str(users_df.at[user_idx, 'LOCATION'])
                     st.session_state.industry = str(users_df.at[user_idx, 'INDUSTRY'])
                     st.session_state.tech_field = str(users_df.at[user_idx, 'TECH'])
+                    st.session_state.role = str(users_df.at[user_idx, 'ROLE']) 
                     
                     st.rerun()
                 else:
