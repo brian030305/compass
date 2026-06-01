@@ -363,9 +363,11 @@ def filter_df_for_chatbot(df, search_query: str = ""):
     if search_query in ["전체", "상관없음", "all"]:
         filtered_df = df
         
-    # 2. AI가 특정 키워드(예: 마케팅, R&D)를 요청한 경우
+    # 2. AI가 특정 키워드를 요청한 경우 (띄어쓰기 기준 다중 검색 완벽 지원)
     elif search_query:
-        mask = df.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)
+        search_terms = search_query.split() # "충북 IT" -> ["충북", "IT"]로 분리
+        # 리스트 안의 모든 단어가 행 데이터 어딘가에 모두 포함되어 있어야 통과
+        mask = df.apply(lambda row: all(any(term.lower() in str(val).lower() for val in row.values) for term in search_terms), axis=1)
         filtered_df = df[mask]
         
     # 3. 평상시 기본 상태 (사용자 가입 정보 맞춤형 필터링 유지)
@@ -375,7 +377,8 @@ def filter_df_for_chatbot(df, search_query: str = ""):
         keyword = tech_str if tech_str else (ind_str if ind_str != "선택해주세요" else "")
         
         if keyword:
-            mask = df.apply(lambda row: row.astype(str).str.contains(keyword, case=False).any(), axis=1)
+            search_terms = keyword.split()
+            mask = df.apply(lambda row: all(any(term.lower() in str(val).lower() for val in row.values) for term in search_terms), axis=1)
             filtered_df = df[mask]
         else:
             filtered_df = df
@@ -440,9 +443,10 @@ if "industry" in st.session_state and "tech_field" in st.session_state:
     if st.session_state.industry != "선택해주세요" or st.session_state.tech_field:
         base_instruction += f"\n\n[고객 기본 정보 (참고용)]\n- 업종: {st.session_state.industry}\n- 기술 분야: {st.session_state.tech_field}\n★ 질문이 위 정보와 관련 있으면 맞춤형으로, 관련 없는 자유 질문이면 이 정보에 구애받지 말고 넓게 답변하세요."
 
-if "chat_session" not in st.session_state:
+if "chat_session" not in st.session_state or st.session_state.get("tool_count") != len(tools_list):
     model = genai.GenerativeModel(model_name="gemini-2.5-flash", tools=tools_list, system_instruction=base_instruction)
     st.session_state.chat_session = model.start_chat(enable_automatic_function_calling=True)
+    st.session_state.tool_count = len(tools_list)
     
 # 4. 메인 화면 출력부
 company_name = st.session_state.get('company_name', st.query_params.get("company", "테크스타트업(주)"))
