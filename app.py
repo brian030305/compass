@@ -215,29 +215,31 @@ if not st.session_state.logged_in:
             elif signup_id in users_df['ID'].astype(str).values:
                 st.error("이미 존재하는 로그인 아이디입니다. 다른 아이디를 사용해주세요.")
             else:
-                # 💡 [핵심 논리] 기존에 가입된 같은 기업(COMPANY)이 있는지 검사합니다.
+                # 💡 기존에 가입된 같은 기업(COMPANY)이 있는지 검사합니다.
                 existing_company_users = users_df[users_df['COMPANY'] == signup_company]
                 
                 if not existing_company_users.empty:
-                    # 1. 이미 누군가(마스터)가 가입한 기업인 경우 -> 일반 USER 부여 및 업종 강제 상속
+                    # 1. 이미 누군가(마스터)가 가입한 기업인 경우 -> 일반 USER 부여 및 업종/지역 강제 상속
                     assigned_role = "USER"
-                    final_industry = existing_company_users.iloc[0]['INDUSTRY'] # 마스터의 업종을 그대로 가져옴
-                    st.toast(f"🏢 이미 등록된 기업입니다. 마스터 계정의 설정에 따라 '{final_industry}' 업종으로 자동 통합됩니다.")
+                    final_industry = existing_company_users.iloc[0]['INDUSTRY'] # 마스터의 업종 상속
+                    final_location = existing_company_users.iloc[0]['LOCATION'] # 💡 [요청사항 2] 마스터의 지역 상속
+                    st.toast(f"🏢 이미 등록된 기업입니다. 마스터 계정의 설정에 따라 '{final_industry}' 업종 및 '{final_location}' 지역으로 자동 통합됩니다.")
                 else:
                     # 2. 이 기업 이름으로 처음 가입하는 경우 -> COMPANY_MASTER 부여
                     assigned_role = "SUPER_ADMIN" if signup_id == 'admin' else "COMPANY_MASTER"
                     final_industry = signup_industry
+                    final_location = signup_location
 
                 hashed_pw = make_hashes(signup_pw)
                 new_user = pd.DataFrame([{
                     "ID": signup_id, 
                     "PW": hashed_pw, 
                     "COMPANY": signup_company, 
-                    "LOCATION": signup_location,
-                    "INDUSTRY": final_industry, # 👈 마스터의 업종이거나, 본인이 선택한 업종으로 최종 저장
+                    "LOCATION": final_location,  # 👈 상속되거나 선택된 최종 지역 저장
+                    "INDUSTRY": final_industry,   # 👈 상속되거나 선택된 최종 업종 저장
                     "TECH": signup_tech,
                     "BIZ_NO": st.session_state.get("verified_no", ""), 
-                    "ROLE": assigned_role,      # 👈 계정의 권한(등급) 컬럼 추가!
+                    "ROLE": assigned_role,      
                     "CREATED_AT": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }])
                 
@@ -248,11 +250,11 @@ if not st.session_state.logged_in:
                 
                 st.session_state.logged_in = True
                 st.session_state.user_id = signup_id
-                st.session_state.company_name = signup_company # 세션에도 정확한 기업명 저장
-                st.session_state.location = signup_location
+                st.session_state.company_name = signup_company 
+                st.session_state.location = final_location # 👈 세션에도 최종 반영된 지역 저장
                 st.session_state.industry = final_industry
                 st.session_state.tech_field = signup_tech
-                st.session_state.role = assigned_role # 현재 로그인한 사람의 권한 저장
+                st.session_state.role = assigned_role 
                 
                 st.success(f"🎉 회원가입이 완료되었습니다! 부여된 권한: {assigned_role}")
                 st.rerun()
@@ -686,7 +688,6 @@ if st.session_state.current_page == '대시보드':
         # =========================================================
         user_role = st.session_state.get('role', 'USER')
         
-        # 1. 관리자 권한(최고관리자 또는 기업마스터)이 있는 경우에만 표출
         if user_role in ['SUPER_ADMIN', 'COMPANY_MASTER']:
             st.markdown("---")
             st.subheader("🛡️ 전용 계정 관리 시스템")
@@ -695,7 +696,7 @@ if st.session_state.current_page == '대시보드':
             all_users_df = admin_fetch_all_users()
             
             if not all_users_df.empty:
-                # 💡 [핵심] 권한에 따른 데이터 필터링
+                # 권한에 따른 데이터 기본 필터링
                 if user_role == 'SUPER_ADMIN':
                     st.write("최고 관리자 권한으로 가입된 **모든 기업의 전체 회원 목록**을 관리합니다.")
                     display_df = all_users_df 
@@ -703,16 +704,30 @@ if st.session_state.current_page == '대시보드':
                     st.write(f"기업 마스터 권한으로 소속된 **'{company_name}'**의 계정만 관리할 수 있습니다.")
                     display_df = all_users_df[all_users_df['COMPANY'] == company_name]
                 
-                # 필터링된 데이터만 화면에 출력
+                # 💡 [요청사항 3] 실시간 계정 검색 기능 추가
+                search_term = st.text_input("🔍 검색할 회원 ID 또는 기업명을 입력하세요", "")
+                if search_term:
+                    display_df = display_df[
+                        display_df['ID'].astype(str).str.contains(search_term, case=False, na=False) |
+                        display_df['COMPANY'].astype(str).str.contains(search_term, case=False, na=False)
+                    ]
+                
+                # 필터링 및 검색된 데이터 화면에 출력
                 st.dataframe(display_df, use_container_width=True)
                 
                 st.markdown("### ⚠️ 계정 제어 및 관리")
                 col1, col2 = st.columns([3, 1])
                 
                 with col1:
-                    # 권한에 맞는 사용자(ID) 리스트만 드롭다운에 노출
-                    user_list = display_df['ID'].tolist()
-                    if 'admin' in user_list: user_list.remove('admin')
+                    # 💡 [요청사항 1] 기업 마스터 계정이 로그인한 경우 마스터 권한 계정은 삭제 대상 목록에서 제외
+                    if user_role == 'COMPANY_MASTER':
+                        # 기업 마스터는 본인을 포함한 마스터 계정을 지울 수 없도록 일반 USER 등급만 필터링하여 드롭다운에 노출
+                        deletion_df = display_df[display_df['ROLE'] == 'USER']
+                        user_list = deletion_df['ID'].tolist()
+                    else:
+                        # 최고 관리자(SUPER_ADMIN)는 본인(admin)을 제외한 모든 계정(마스터 포함) 삭제 가능
+                        user_list = display_df['ID'].tolist()
+                        if 'admin' in user_list: user_list.remove('admin')
                         
                     delete_options = ["계정을 선택해주세요"] + user_list
                     selected_target_id = st.selectbox("관리(삭제/비밀번호 변경)할 회원 ID를 선택하세요", delete_options)
@@ -726,8 +741,6 @@ if st.session_state.current_page == '대시보드':
                 if delete_confirm_btn and selected_target_id:
                     if selected_target_id == "계정을 선택해주세요":
                         st.warning("⚠️ 삭제할 계정을 먼저 선택해 주세요.")
-                    elif user_role == 'COMPANY_MASTER' and selected_target_id == st.session_state.user_id:
-                        st.error("⚠️ 기업 마스터 본인의 계정은 스스로 삭제할 수 없습니다.")
                     else:
                         with st.spinner(f"'{selected_target_id}' 계정을 삭제하는 중..."):
                             if admin_delete_user(selected_target_id):
