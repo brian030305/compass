@@ -696,6 +696,7 @@ if st.session_state.current_page == '대시보드':
             all_users_df = admin_fetch_all_users()
             
             if not all_users_df.empty:
+                all_users_df.columns = all_users_df.columns.str.upper()
                 # 권한에 따른 데이터 기본 필터링
                 if user_role == 'SUPER_ADMIN':
                     st.write("최고 관리자 권한으로 가입된 **모든 기업의 전체 회원 목록**을 관리합니다.")
