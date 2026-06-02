@@ -460,9 +460,9 @@ def get_ai_classified_data():
 base_instruction = """당신은 한국의 스타트업과 중소기업을 돕는 최고 수준의 전천후 AI 창업 멘토입니다.
 사용자가 '지원사업'을 물어보면 공고를 기반으로 대답하되, '세무, 법무, 마케팅, 지분, 팀빌딩' 등 창업 일반에 대해 질문하면 특정 업종이나 공고에 전혀 얽매이지 말고 스타트업 실무 관점에서 아주 자유롭고 전문적으로 답변해 주세요. '제가 답변할 수 없는 내용입니다' 등의 회피성 멘트는 절대 금지합니다."""
 
-if "industry" in st.session_state and "tech_field" in st.session_state:
-    if st.session_state.industry != "선택해주세요" or st.session_state.tech_field:
-        base_instruction += f"\n\n[고객 기본 정보 (참고용)]\n- 업종: {st.session_state.industry}\n- 기술 분야: {st.session_state.tech_field}\n★ 질문이 위 정보와 관련 있으면 맞춤형으로, 관련 없는 자유 질문이면 이 정보에 구애받지 말고 넓게 답변하세요."
+if "industry" in st.session_state and "tech_field" in st.session_state and "location" in st.session_state:
+    if st.session_state.industry != "선택해주세요" or st.session_state.tech_field or st.session_state.location != "전국":
+        base_instruction += f"\n\n[고객 기본 정보 (참고용)]\n- 소재지(지역): {st.session_state.location}\n- 업종: {st.session_state.industry}\n- 기술 분야: {st.session_state.tech_field}\n★ 질문이 위 정보와 관련 있으면 맞춤형으로, 관련 없는 자유 질문이면 이 정보에 구애받지 말고 넓게 답변하세요."
 
 if "chat_session" not in st.session_state or st.session_state.get("tool_count") != len(tools_list):
     model = genai.GenerativeModel(model_name="gemini-2.5-flash", tools=tools_list, system_instruction=base_instruction)
