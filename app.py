@@ -1126,7 +1126,7 @@ elif st.session_state.current_page == '지원 캘린더':
                 custom_end = st.date_input("종료(마감) 일자", datetime.now().date())
             custom_url = st.text_input("참고용 상세 링크 URL (선택)", placeholder="https://...")
             
-            submit_custom = st.form_submit_button("➕ 캘린더에 일정 강제 기입", use_container_width=True)
+            submit_custom = st.form_submit_button("➕ 캘린더에 일정 기입", use_container_width=True)
             if submit_custom:
                 if not custom_title.strip():
                     st.warning("일정 이름을 정확히 입력해 주세요.")
