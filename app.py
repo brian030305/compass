@@ -372,6 +372,11 @@ with st.sidebar:
     st.button("💡 AI 창업 컨설팅", use_container_width=True, type="primary" if st.session_state.current_page == 'AI 창업 컨설팅' else "secondary", on_click=change_page, args=('AI 창업 컨설팅',))
     st.button("📄 보고서 생성", use_container_width=True, type="primary" if st.session_state.current_page == '보고서 생성' else "secondary", on_click=change_page, args=('보고서 생성',))
     
+    if st.session_state.get('role', 'USER') in ['SUPER_ADMIN', 'COMPANY_MASTER']:
+        st.divider()
+        st.markdown("### 🛡️ 관리자 전용")
+        st.button("⚙️ 계정 관리", use_container_width=True, type="primary" if st.session_state.current_page == '계정 관리' else "secondary", on_click=change_page, args=('계정 관리',))
+    
     st.divider()
    
 
@@ -685,107 +690,6 @@ if st.session_state.current_page == '대시보드':
                     
         else:
             st.info("💡 좌측 사이드바에서 기업 정보를 설정하시면 맞춤형 지원사업 알림과 생존율 진단을 받아보실 수 있습니다.")
-    
-        # =========================================================
-        # 🛡️ RBAC (역할 기반 권한 제어) 관리자 대시보드 👇
-        # =========================================================
-        user_role = st.session_state.get('role', 'USER')
-        
-        if user_role in ['SUPER_ADMIN', 'COMPANY_MASTER']:
-            st.markdown("---")
-            st.subheader("🛡️ 전용 계정 관리 시스템")
-            
-            try:
-                conn = get_oracle_engine()
-                all_users_df = pd.read_sql("SELECT * FROM users_tb", conn)
-                all_users_df.columns = all_users_df.columns.str.upper() 
-                
-                if 'ROLE' not in all_users_df.columns:
-                    all_users_df['ROLE'] = 'USER'
-            except Exception as e:
-                st.error(f"데이터베이스 로드 중 오류 발생: {e}")
-                all_users_df = pd.DataFrame()
-            
-            if not all_users_df.empty:
-                # 💡 [보안 완벽 차단] 데이터를 불러오자마자 PW 컬럼을 메모리에서 영구 삭제합니다.
-                if 'PW' in all_users_df.columns:
-                    all_users_df = all_users_df.drop(columns=['PW'])
-                
-                if user_role == 'SUPER_ADMIN':
-                    st.write("최고 관리자 권한으로 가입된 **모든 기업의 전체 회원 목록**을 관리합니다.")
-                    display_df = all_users_df 
-                else: 
-                    st.write(f"기업 마스터 권한으로 소속된 **'{st.session_state.get('company_name', '')}'**의 계정만 관리할 수 있습니다.")
-                    display_df = all_users_df[all_users_df['COMPANY'] == st.session_state.get('company_name', '')]
-                
-                manageable_users = display_df[display_df['ROLE'] == 'USER']
-                
-                if user_role == 'COMPANY_MASTER' and manageable_users.empty:
-                    st.info("아직 가입한 소속 직원(하위 계정)이 없습니다.")
-                else:
-                    search_term = st.text_input("🔍 검색할 회원 ID 또는 기업명을 입력하세요", "")
-                    if search_term:
-                        display_df = display_df[
-                            display_df['ID'].astype(str).str.contains(search_term, case=False, na=False) |
-                            display_df['COMPANY'].astype(str).str.contains(search_term, case=False, na=False)
-                        ]
-                    
-                    # 이제 display_df에는 PW가 절대 존재할 수 없으므로 안전하게 출력됩니다.
-                    st.dataframe(display_df, use_container_width=True)
-                    
-                    st.markdown("### ⚠️ 계정 제어 및 관리")
-                    col1, col2 = st.columns([3, 1])
-                    
-                    with col1:
-                        if user_role == 'COMPANY_MASTER':
-                            deletion_df = display_df[display_df['ROLE'] == 'USER']
-                            user_list = deletion_df['ID'].tolist()
-                        else:
-                            user_list = display_df['ID'].tolist()
-                            if 'admin' in user_list: user_list.remove('admin')
-                            
-                        delete_options = ["계정을 선택해주세요"] + user_list
-                        selected_target_id = st.selectbox("관리(삭제/비밀번호 변경)할 회원 ID를 선택하세요", delete_options)
-                        
-                    with col2:
-                        st.write("") 
-                        st.write("") 
-                        delete_confirm_btn = st.button("❌ 선택 계정 삭제", type="primary", use_container_width=True)
-                        
-                    if delete_confirm_btn and selected_target_id:
-                        if selected_target_id == "계정을 선택해주세요":
-                            st.warning("⚠️ 삭제할 계정을 먼저 선택해 주세요.")
-                        else:
-                            with st.spinner(f"'{selected_target_id}' 계정을 삭제하는 중..."):
-                                if admin_delete_user(selected_target_id):
-                                    st.success(f"🎉 '{selected_target_id}' 계정이 성공적으로 삭제되었습니다.")
-                                    time.sleep(1.5)
-                                    st.rerun()
-                                    
-                    with st.form(key="admin_pw_form"):
-                        st.markdown("### 🔑 비밀번호 강제 변경")
-                        pw_col1, pw_col2 = st.columns([3, 1])
-                        with pw_col1:
-                            admin_new_pw = st.text_input("새로운 비밀번호 입력", type="password")
-                        with pw_col2:
-                            st.write("")
-                            st.write("")
-                            pw_change_btn = st.form_submit_button("🔄 비밀번호 변경", use_container_width=True)
-                            
-                        if pw_change_btn:
-                            if selected_target_id == "계정을 선택해주세요":
-                                st.warning("⚠️ 상단에서 비밀번호를 변경할 계정을 먼저 선택해 주세요.")
-                            elif not admin_new_pw:
-                                st.warning("⚠️ 새로운 비밀번호를 입력해 주세요.")
-                            else:
-                                with st.spinner(f"'{selected_target_id}' 계정의 비밀번호를 변경하는 중..."):
-                                    new_hashed_pw = make_hashes(admin_new_pw)
-                                    if admin_change_user_password(selected_target_id, new_hashed_pw):
-                                        st.success(f"🎉 '{selected_target_id}' 계정의 비밀번호가 성공적으로 변경되었습니다.")
-                                        time.sleep(1.5)
-                                        st.rerun()
-            else:
-                st.info("현재 관리할 수 있는 계정이 없습니다.")
             
     if st.session_state.show_chatbot:
         with ai_col:
@@ -1529,3 +1433,108 @@ elif st.session_state.current_page == '보고서 생성':
             file_name=f"{st.session_state.current_target_business}_사업계획서.docx", 
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
+
+# ------- 전용 계정 관리 탭 설정 (관리자 전용) -----------
+elif st.session_state.current_page == '계정 관리':
+    st.header("⚙️ 전용 계정 관리 시스템")
+    
+    user_role = st.session_state.get('role', 'USER')
+    
+    # 혹시라도 일반 유저가 URL 조작 등으로 강제 접근하는 것을 막는 2중 보안 장치
+    if user_role not in ['SUPER_ADMIN', 'COMPANY_MASTER']:
+        st.error("접근 권한이 없습니다.")
+    else:
+        st.caption("전체 사용자 계정 조회, 수정 및 삭제 관리를 수행할 수 있습니다.")
+        st.markdown("---")
+        
+        try:
+            conn = get_oracle_engine()
+            all_users_df = pd.read_sql("SELECT * FROM users_tb", conn)
+            all_users_df.columns = all_users_df.columns.str.upper() 
+            
+            if 'ROLE' not in all_users_df.columns:
+                all_users_df['ROLE'] = 'USER'
+        except Exception as e:
+            st.error(f"데이터베이스 로드 중 오류 발생: {e}")
+            all_users_df = pd.DataFrame()
+        
+        if not all_users_df.empty:
+            if 'PW' in all_users_df.columns:
+                all_users_df = all_users_df.drop(columns=['PW'])
+            
+            if user_role == 'SUPER_ADMIN':
+                st.write("최고 관리자 권한으로 가입된 **모든 기업의 전체 회원 목록**을 관리합니다.")
+                display_df = all_users_df 
+            else: 
+                st.write(f"기업 마스터 권한으로 소속된 **'{st.session_state.get('company_name', '')}'**의 계정만 관리할 수 있습니다.")
+                display_df = all_users_df[all_users_df['COMPANY'] == st.session_state.get('company_name', '')]
+            
+            manageable_users = display_df[display_df['ROLE'] == 'USER']
+            
+            if user_role == 'COMPANY_MASTER' and manageable_users.empty:
+                st.info("아직 가입한 소속 직원(하위 계정)이 없습니다.")
+            else:
+                search_term = st.text_input("🔍 검색할 회원 ID 또는 기업명을 입력하세요", "")
+                if search_term:
+                    display_df = display_df[
+                        display_df['ID'].astype(str).str.contains(search_term, case=False, na=False) |
+                        display_df['COMPANY'].astype(str).str.contains(search_term, case=False, na=False)
+                    ]
+                
+                st.dataframe(display_df, use_container_width=True)
+                
+                st.markdown("### ⚠️ 계정 제어 및 관리")
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    if user_role == 'COMPANY_MASTER':
+                        deletion_df = display_df[display_df['ROLE'] == 'USER']
+                        user_list = deletion_df['ID'].tolist()
+                    else:
+                        user_list = display_df['ID'].tolist()
+                        if 'admin' in user_list: user_list.remove('admin')
+                        
+                    delete_options = ["계정을 선택해주세요"] + user_list
+                    selected_target_id = st.selectbox("관리(삭제/비밀번호 변경)할 회원 ID를 선택하세요", delete_options)
+                    
+                with col2:
+                    st.write("") 
+                    st.write("") 
+                    delete_confirm_btn = st.button("❌ 선택 계정 삭제", type="primary", use_container_width=True)
+                    
+                if delete_confirm_btn and selected_target_id:
+                    if selected_target_id == "계정을 선택해주세요":
+                        st.warning("⚠️ 삭제할 계정을 먼저 선택해 주세요.")
+                    else:
+                        with st.spinner(f"'{selected_target_id}' 계정을 삭제하는 중..."):
+                            if admin_delete_user(selected_target_id):
+                                st.success(f"🎉 '{selected_target_id}' 계정이 성공적으로 삭제되었습니다.")
+                                time.sleep(1.5)
+                                st.rerun()
+                                
+                with st.form(key="admin_pw_form"):
+                    st.markdown("### 🔑 비밀번호 강제 변경")
+                    pw_col1, pw_col2 = st.columns([3, 1])
+                    with pw_col1:
+                        admin_new_pw = st.text_input("새로운 비밀번호 입력", type="password")
+                    with pw_col2:
+                        st.write("")
+                        st.write("")
+                        pw_change_btn = st.form_submit_button("🔄 비밀번호 변경", use_container_width=True)
+                        
+                    if pw_change_btn:
+                        if selected_target_id == "계정을 선택해주세요":
+                            st.warning("⚠️ 상단에서 비밀번호를 변경할 계정을 먼저 선택해 주세요.")
+                        elif not admin_new_pw:
+                            st.warning("⚠️ 새로운 비밀번호를 입력해 주세요.")
+                        else:
+                            with st.spinner(f"'{selected_target_id}' 계정의 비밀번호를 변경하는 중..."):
+                                new_hashed_pw = make_hashes(admin_new_pw)
+                                if admin_change_user_password(selected_target_id, new_hashed_pw):
+                                    st.success(f"🎉 '{selected_target_id}' 계정의 비밀번호가 성공적으로 변경되었습니다.")
+                                    time.sleep(1.5)
+                                    st.rerun()
+        else:
+            st.info("현재 관리할 수 있는 계정이 없습니다.")
+
+
