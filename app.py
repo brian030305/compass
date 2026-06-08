@@ -648,8 +648,7 @@ if st.session_state.current_page == '대시보드':
                 if st.button("🤖 AI 생존율 정밀 계산 시작", use_container_width=True):
                     with st.spinner("실시간 공고 텍스트를 분석하여 역량 점수를 도출 중입니다... (약 5~10초 소요)"):
                         data_summary = df.head(10)['사업명'].to_string() if not df.empty else "데이터 없음"
-                        
-                        background_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+
                         analysis_prompt = f"""
                         업종: {ind_str}, 기술: {tech_str}
                         매칭된 실제 공고 목록: {data_summary}
@@ -657,8 +656,9 @@ if st.session_state.current_page == '대시보드':
                         반드시 숫자 4개만 콤마로 구분해서 줄 것. 예: 75,82,60,88
                         """
                         try:
-                            res = background_model.generate_content(analysis_prompt)
-                            found_numbers = re.findall(r'\d+', res.text)
+                            # 통합 라우터 제미나이 호출
+                            res_text = call_school_llm(prompt=analysis_prompt, model_type="gemini")
+                            found_numbers = re.findall(r'\d+', res_text)
                             
                             if len(found_numbers) >= 4:
                                 st.session_state.dashboard_metrics = [int(n) for n in found_numbers[:4]]
@@ -945,10 +945,9 @@ elif st.session_state.current_page == 'AI 매칭':
                         [목록]
                         {titles_text}
                         """
-                        background_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-                        ai_response = background_model.generate_content(ai_prompt)
+                        ai_response_text = call_school_llm(prompt=ai_prompt, model_type="gemini")
                         
-                        recommended_titles = [t.strip().replace('- ', '').strip() for t in ai_response.text.split('\n') if t.strip()]
+                        recommended_titles = [t.strip().replace('- ', '').strip() for t in ai_response_text.split('\n') if t.strip()]
                         
                         for rec_title in recommended_titles:
                             mask = df['사업명'].str.contains(re.escape(rec_title), case=False, na=False)
@@ -1098,9 +1097,9 @@ elif st.session_state.current_page == '생존율 예측':
                 """
                 
                 try:
-                    background_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-                    response = background_model.generate_content(prompt)
-                    st.session_state.survival_report = response.text
+                    # 통합 라우터 제미나이 호출
+                    response_text = call_school_llm(prompt=prompt, model_type="gemini")
+                    st.session_state.survival_report = response_text
                 except Exception as e:
                     st.error(f"AI 분석 중 오류가 발생했습니다: {e}")
                 
