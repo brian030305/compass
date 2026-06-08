@@ -1338,7 +1338,7 @@ elif st.session_state.current_page == 'AI 창업 컨설팅':
                     if "⚠️ 오류" in report_text:
                         st.error(report_text)
                     else:
-                        st.success("✅ 실시간 공공데이터 기반 AI 컨설팅 결과가 도착했습니다! (Powered by Claude)")
+                        st.success("✅ 실시간 공공데이터 기반 AI 컨설팅 결과가 도착했습니다!")
                         
                         with st.container():
                             st.markdown(report_text)
@@ -1461,11 +1461,13 @@ elif st.session_state.current_page == '보고서 생성':
                 """
                 
                 try:
-                    background_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-                    response = background_model.generate_content(prompt)
-                    report_text = response.text
+                    # 💡 통합 라우터를 통해 가장 똑똑한 클로드 모델을 호출합니다.
+                    report_text = call_school_llm(prompt=prompt, model_type="claude")
                     
-                    st.success("✅ 보고서 초안이 성공적으로 생성되었습니다!")
+                    if "⚠️ 오류" in report_text:
+                        st.error(report_text)
+                    else:
+                        st.success("✅ 보고서 초안이 성공적으로 생성되었습니다!")
                     
                     # 1. 화면에 방금 생성된 결과 즉시 출력
                     with st.container():
