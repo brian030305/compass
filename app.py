@@ -9,6 +9,7 @@ import hashlib
 import requests
 import json
 from docx import Document
+from ai_manager import call_school_llm
 from data_manager import get_oracle_engine, get_sqlalchemy_engine, admin_fetch_all_users, admin_delete_user, admin_change_user_password
 from datetime import datetime, timedelta
 from data_manager import (
@@ -1330,20 +1331,24 @@ elif st.session_state.current_page == 'AI 창업 컨설팅':
                     """
                 
                 try:
-                    consulting_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-                    consulting_response = consulting_model.generate_content(consulting_prompt)
+                    # 💡 구글 제미나이 대신 우리가 만든 통합 라우터(call_school_llm)를 통해 클로드(claude)를 호출합니다.
+                    report_text = call_school_llm(prompt=consulting_prompt, model_type="claude")
                     
-                    st.success("✅ 실시간 공공데이터 기반 AI 컨설팅 결과가 도착했습니다!")
-                    
-                    with st.container():
-                        st.markdown(consulting_response.text)
+                    # 오류 메시지가 반환되었는지 확인
+                    if "⚠️ 오류" in report_text:
+                        st.error(report_text)
+                    else:
+                        st.success("✅ 실시간 공공데이터 기반 AI 컨설팅 결과가 도착했습니다! (Powered by Claude)")
+                        
+                        with st.container():
+                            st.markdown(report_text)
 
-                    # 방금 생성된 결과를 메모장에 누적 저장
-                    st.session_state.consulting_history.append({
-                        "mode": consulting_mode,
-                        "input": user_input,
-                        "result": consulting_response.text
-                    })
+                        # 🥪 [샌드위치 아래쪽 로직] 방금 생성된 결과를 메모장에 누적 저장
+                        st.session_state.consulting_history.append({
+                            "mode": consulting_mode,
+                            "input": user_input,
+                            "result": report_text
+                        })
                         
                     clean_text = consulting_response.text
                     clean_text = re.sub(r'\*+', '', clean_text)  
