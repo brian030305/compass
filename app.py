@@ -1228,7 +1228,7 @@ elif st.session_state.current_page == 'AI 창업 컨설팅':
     st.header("💡 AI 창업 컨설팅 및 사업계획서 진단")
     st.caption("사업계획서 약점 진단부터 창업 전반에 대한 자유로운 질문까지, 실시간 공공데이터를 기반으로 답변해 드립니다.")
     
-    # 🥪 [샌드위치 위쪽 로직] 기존 대화 기록 불러오기
+    # 기존 대화 기록 불러오기
     if "consulting_history" not in st.session_state:
         st.session_state.consulting_history = []
         
@@ -1338,7 +1338,7 @@ elif st.session_state.current_page == 'AI 창업 컨설팅':
                     with st.container():
                         st.markdown(consulting_response.text)
 
-                    # 🥪 [샌드위치 아래쪽 로직] 방금 생성된 결과를 메모장에 누적 저장
+                    # 방금 생성된 결과를 메모장에 누적 저장
                     st.session_state.consulting_history.append({
                         "mode": consulting_mode,
                         "input": user_input,
@@ -1376,6 +1376,25 @@ elif st.session_state.current_page == '보고서 생성':
     st.header("📄 AI 자동 생성 보고서 보관함")
     st.caption("AI 매칭 메뉴에서 직접 선택하여 캘린더에 등록한 관심 공고들의 사업계획서 초안을 즉시 생성할 수 있습니다.")
     
+    # 기존에 생성한 보고서 기록 불러오기
+    if "report_history" not in st.session_state:
+        st.session_state.report_history = []
+
+    # 메모장에 저장된 과거 보고서가 있다면 화면 상단에 '접이식 탭'으로 모두 그려줌
+    if st.session_state.report_history:
+        st.markdown("### 📚 이전 생성 보고서 기록")
+        for idx, item in enumerate(st.session_state.report_history):
+            with st.expander(f"📄 {item['title']} 사업계획서 초안", expanded=False):
+                st.markdown(item['content'])
+                st.download_button(
+                    label="📥 이 보고서 다시 다운로드 (.docx)",
+                    data=item['docx_data'],
+                    file_name=f"{item['title']}_사업계획서.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key=f"dl_history_{idx}" # 스트림릿 중복 키 에러 방지
+                )
+        st.markdown("---") # 과거 기록과 새로운 입력창 구분선
+
     saved_projects = []
     if 'calendar_events' in st.session_state and st.session_state.calendar_events:
         saved_projects = [e['full_title'] for e in st.session_state.calendar_events if e.get('full_title')]
@@ -1397,7 +1416,7 @@ elif st.session_state.current_page == '보고서 생성':
     else:
         target_business = selected_business
         
-    if st.button("사업계획서 초안 생성", type="primary"):
+    if st.button("🚀 사업계획서 초안 생성", type="primary"):
         if not target_business: 
             st.warning("사업명을 입력하거나 선택해주세요.")
         else:
@@ -1439,8 +1458,45 @@ elif st.session_state.current_page == '보고서 생성':
                 try:
                     background_model = genai.GenerativeModel(model_name="gemini-2.5-flash")
                     response = background_model.generate_content(prompt)
-                    st.session_state.report_content = response.text
-                    st.session_state.current_target_business = target_business
+                    report_text = response.text
+                    
+                    st.success("✅ 보고서 초안이 성공적으로 생성되었습니다!")
+                    
+                    # 1. 화면에 방금 생성된 결과 즉시 출력
+                    with st.container():
+                        st.markdown(report_text)
+                        
+                    # 2. 워드 파일 백그라운드 생성
+                    clean_text = report_text
+                    clean_text = re.sub(r'\*+', '', clean_text)  
+                    clean_text = re.sub(r'#+\s*', '', clean_text) 
+                    clean_text = re.sub(r'`+', '', clean_text)    
+                    
+                    doc = Document()
+                    doc.add_heading(f"{target_business} 사업계획서", 0)
+                    doc.add_paragraph(clean_text)
+                    
+                    bio = io.BytesIO()
+                    doc.save(bio)
+                    bio.seek(0)
+                    docx_bytes = bio.getvalue()
+                    
+                    # 생성된 텍스트와 워드 파일 데이터를 메모장에 누적 저장
+                    st.session_state.report_history.append({
+                        "title": target_business,
+                        "content": report_text,
+                        "docx_data": docx_bytes
+                    })
+                    
+                    # 3. 방금 생성된 결과용 다운로드 버튼
+                    st.divider()
+                    st.download_button(
+                        label="📥 기호 없이 깔끔한 워드(.docx) 다운로드", 
+                        data=docx_bytes, 
+                        file_name=f"{target_business}_사업계획서.docx", 
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+                    
                 except Exception as e:
                     st.error(f"보고서 생성 중 오류가 발생했습니다: {e}")
                 
