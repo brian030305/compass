@@ -324,18 +324,39 @@ def edit_company_profile():
                 # 알케미가 마음대로 바꾼 소문자를 다시 대문자로 강제 복구
                 users_df.columns = users_df.columns.str.upper()
                 
+                # 1. 로그인한 본인의 데이터 마스크
                 mask = users_df['ID'].astype(str) == st.session_state.user_id
+                
                 if mask.any():
-                    # 1. 기업 정보 업데이트
+                    # 덮어쓰기 전에 기존 업종을 미리 꺼내서 저장해둡니다.
+                    old_industry = str(users_df.loc[mask, 'INDUSTRY'].values[0])
+                    
+                    # 기존 업종과 새로 입력한 업종이 다르다면, 기술 키워드를 강제로 비워버립니다.
+                    if old_industry != str(industry_input):
+                        tech_field_input = "" 
+                        st.info("ℹ️ 업종이 변경되어 기존 기술 키워드가 초기화되었습니다. 필요시 다시 설정해 주세요.")
+
+                    # 본인의 모든 정보 업데이트
                     users_df.loc[mask, 'COMPANY'] = company_input
                     users_df.loc[mask, 'LOCATION'] = location_input
                     users_df.loc[mask, 'INDUSTRY'] = industry_input
                     users_df.loc[mask, 'TECH'] = tech_field_input
                     
-                    # 2. 비밀번호를 새로 입력했고, 서로 일치한다면 해싱해서 업데이트!
                     if new_pw and new_pw == new_pw_check:
-                        hashed_pw = make_hashes(new_pw) # 기존에 만들어두신 암호화 함수 사용
+                        hashed_pw = make_hashes(new_pw) 
                         users_df.loc[mask, 'PW'] = hashed_pw
+
+                    # 연쇄 업데이트 로직 (하위 계정 동기화)
+                    if st.session_state.get('role') in ['COMPANY_MASTER', 'SUPER_ADMIN']:
+                        company_mask = users_df['COMPANY'] == st.session_state.get('company_name')
+                        
+                        users_df.loc[company_mask, 'COMPANY'] = company_input
+                        users_df.loc[company_mask, 'LOCATION'] = location_input
+                        users_df.loc[company_mask, 'INDUSTRY'] = industry_input
+                        
+                        # 마스터가 업종을 바꿨다면, 소속된 모든 직원의 기술 키워드도 일괄 빈칸 처리합니다.
+                        if old_industry != str(industry_input):
+                            users_df.loc[company_mask, 'TECH'] = ""
                     
                     # 알케미 엔진으로 DB에 최종 덮어쓰기
                     save_engine = get_sqlalchemy_engine() 
