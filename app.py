@@ -1228,6 +1228,20 @@ elif st.session_state.current_page == 'AI 창업 컨설팅':
     st.header("💡 AI 창업 컨설팅 및 사업계획서 진단")
     st.caption("사업계획서 약점 진단부터 창업 전반에 대한 자유로운 질문까지, 실시간 공공데이터를 기반으로 답변해 드립니다.")
     
+    # 🥪 [샌드위치 위쪽 로직] 기존 대화 기록 불러오기
+    if "consulting_history" not in st.session_state:
+        st.session_state.consulting_history = []
+        
+    # 메모장에 저장된 과거 컨설팅 기록이 있다면 화면 상단에 '접이식 탭'으로 모두 그려줌
+    if st.session_state.consulting_history:
+        st.markdown("### 📚 이전 컨설팅 기록")
+        for idx, item in enumerate(st.session_state.consulting_history):
+            with st.expander(f"🕰️ 이전 기록 {idx+1} ({item['mode']})", expanded=False):
+                st.markdown(f"**Q. {item['input']}**")
+                st.divider()
+                st.markdown(item['result'])
+        st.markdown("---") # 과거 기록과 새로운 입력창 구분선
+
     # 1. 사용자가 원하는 컨설팅 모드를 선택할 수 있도록 라디오 버튼 추가
     consulting_mode = st.radio(
         "어떤 형태의 컨설팅을 원하시나요?",
@@ -1323,6 +1337,13 @@ elif st.session_state.current_page == 'AI 창업 컨설팅':
                     
                     with st.container():
                         st.markdown(consulting_response.text)
+
+                    # 🥪 [샌드위치 아래쪽 로직] 방금 생성된 결과를 메모장에 누적 저장
+                    st.session_state.consulting_history.append({
+                        "mode": consulting_mode,
+                        "input": user_input,
+                        "result": consulting_response.text
+                    })
                         
                     clean_text = consulting_response.text
                     clean_text = re.sub(r'\*+', '', clean_text)  
