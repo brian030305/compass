@@ -277,17 +277,24 @@ def edit_company_profile():
     current_tech = st.session_state.get('tech_field', '')
     current_location = st.session_state.get('location', '전국')
     
+    # 💡 [추가된 부분] 현재 로그인한 사람의 권한이 일반 'USER'인지 확인합니다.
+    is_normal_user = st.session_state.get('role', 'USER') == 'USER'
+    
     with st.form(key="edit_company_form"):
-        company_input = st.text_input("기업명", value=current_company)
+        # 💡 [추가된 부분] 일반 유저라면 기업명 수정을 비활성화(disabled) 합니다.
+        company_input = st.text_input("기업명", value=current_company, disabled=is_normal_user)
         
         location_options = ["전국", "서울", "경기", "인천", "부산", "대구", "대전", "광주", "울산", "세종", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주"]
         loc_index = location_options.index(current_location) if current_location in location_options else 0
-        location_input = st.selectbox("기업 소재지(지역)", location_options, index=loc_index)
+        # 💡 [추가된 부분] 지역 수정 비활성화
+        location_input = st.selectbox("기업 소재지(지역)", location_options, index=loc_index, disabled=is_normal_user)
         
         industry_options = ["선택해주세요", "IT/소프트웨어", "제조업", "바이오/헬스케어", "에너지/환경", "기타"]
         ind_index = industry_options.index(current_industry) if current_industry in industry_options else 0
-        industry_input = st.selectbox("어떤 업종에 속하시나요?", industry_options, index=ind_index)
+        # 💡 [추가된 부분] 업종 수정 비활성화
+        industry_input = st.selectbox("어떤 업종에 속하시나요?", industry_options, index=ind_index, disabled=is_normal_user)
         
+        # 기술 분야와 비밀번호는 개인별 설정이므로 비활성화하지 않습니다.
         tech_field_input = st.text_input("필요한 기술 분야 키워드", value=current_tech, placeholder="예: 드론, 인공지능")
         
         st.markdown("---")
