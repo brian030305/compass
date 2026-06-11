@@ -141,7 +141,7 @@ for idx, row in biz_df.head(TARGET_LIMIT).iterrows():
                 ]
             }
             
-            ai_res = requests.post(school_api_url, json=ai_payload, headers=ai_headers, timeout=30)
+            ai_res = requests.post(school_api_url, json=ai_payload, headers=ai_headers, timeout=120)
             
             if ai_res.status_code == 200:
                 result_data = ai_res.json()
