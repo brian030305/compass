@@ -6,6 +6,8 @@ import requests
 import pandas as pd
 from sqlalchemy import create_engine
 import oracledb
+from bs4 import BeautifulSoup
+import time
 
 print("🚀 [시스템 시작] 새로운 final_bot 가동 시작...")
 
@@ -15,6 +17,7 @@ oracle_dsn = os.getenv("ORACLE_DSN")
 wallet_password = os.getenv("WALLET_PASSWORD")
 wallet_base64 = os.getenv("WALLET_BASE64")
 bizinfo_key = os.getenv("BIZINFO_API_KEY")
+school_api_key = os.getenv("SCHOOL_API_KEY") # 깃허브 시크릿에 SCHOOL_API_KEY 추가 필수
 
 if not all([oracle_user, oracle_password, oracle_dsn, wallet_password, wallet_base64, bizinfo_key]):
     print("❌ 에러: 깃허브 Secrets 설정 중 누락된 항목이 존재합니다.")
@@ -82,6 +85,93 @@ except Exception as e:
     print(f"❌ API 통신 실패 단계 에러: {e}")
     sys.exit(1)
 
+# =====================================================================
+# 🚀 3.5️⃣ 원문 링크 크롤링 및 AI 심층 판별 단계
+# =====================================================================
+print("3.5️⃣ 기업마당 상세 페이지 크롤링 및 AI 심층 검증 시작...")
+
+biz_df['ai_pass_yn'] = "미검증"
+biz_df['ai_summary'] = "대기중"
+
+TARGET_LIMIT = 10 # 봇 과부하 및 API 요금 폭탄을 막기 위해 최상단 신규 공고 10개만 검증
+
+for idx, row in biz_df.head(TARGET_LIMIT).iterrows():
+    pblanc_url = str(row.get('pblancUrl', ''))
+    title = str(row.get('pblancNm', ''))
+    
+    if not pblanc_url.startswith("http"):
+        continue
+        
+    print(f"🔍 [{idx+1}/{TARGET_LIMIT}] 원문 독해 및 AI 검증 중: {title[:15]}...")
+    
+    try:
+        # 1. 원문 상세 페이지 텍스트 크롤링
+        page_res = requests.get(pblanc_url, headers=headers, timeout=10)
+        soup = BeautifulSoup(page_res.text, 'html.parser')
+        
+        for script in soup(["script", "style"]):
+            script.extract()
+        
+        # 문서가 너무 길면 토큰 제한에 걸리므로 앞부분 3000자만 발췌
+        core_text = soup.get_text(separator=' ', strip=True)[:3000]
+        
+        # 2. 학교 Claude API 통신 세팅
+        if school_api_key:
+            ai_prompt = f"""
+            당신은 정부지원사업 심사역입니다. 다음은 공고문 상세 원문입니다.
+            문서를 꼼꼼히 읽고 일반적인 스타트업이 지원하기에 까다로운 '제한 조건'이나 '독소 조항'이 있으면 '불가(X)', 지원이 무난하면 '가능(O)'으로 첫 문장에 명시한 뒤 3줄로 이유를 요약하세요.
+            [원문 데이터]: {core_text}
+            """
+            
+            # 가이드에 명시된 학교 API 엔드포인트 주소 적용
+            school_api_url = "https://factchat-cloud.mindlogic.ai/v1/api/anthropic/messages"
+            ai_headers = {
+                "Authorization": f"Bearer {school_api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            # 가이드에 명시된 Anthropic Messages 규격 적용
+            ai_payload = {
+                "model": "claude-sonnet-4-5-20250929",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": ai_prompt
+                    }
+                ]
+            }
+            
+            ai_res = requests.post(school_api_url, json=ai_payload, headers=ai_headers, timeout=30)
+            
+            if ai_res.status_code == 200:
+                result_data = ai_res.json()
+                
+                # Anthropic API 기본 응답 구조에서 텍스트 추출
+                try:
+                    ai_answer = result_data.get('content', [{}])[0].get('text', str(result_data))
+                except:
+                    ai_answer = str(result_data)
+                
+                # O/X 판별 로직
+                if "X" in ai_answer or "불가" in ai_answer:
+                    biz_df.at[idx, 'ai_pass_yn'] = "X"
+                else:
+                    biz_df.at[idx, 'ai_pass_yn'] = "O"
+                    
+                biz_df.at[idx, 'ai_summary'] = ai_answer[:200]
+            else:
+                biz_df.at[idx, 'ai_pass_yn'] = "통신 에러"
+                biz_df.at[idx, 'ai_summary'] = f"상태코드: {ai_res.status_code}"
+                
+        time.sleep(1) # IP 차단 방지용 딜레이
+        
+    except Exception as e:
+        print(f"❌ 크롤링/AI 에러 발생: {e}")
+        biz_df.at[idx, 'ai_pass_yn'] = "에러"
+        biz_df.at[idx, 'ai_summary'] = str(e)[:100]
+
+# =====================================================================
+
 print("4️⃣ 오라클 클라우드 DB 최종 적재 시작...")
 def get_oracle_connection():
     return oracledb.connect(
@@ -96,7 +186,7 @@ try:
     engine = create_engine('oracle+oracledb://', creator=get_oracle_connection)
     biz_df = biz_df.astype(str)
     biz_df.to_sql('bizinfo_tb', engine, if_exists='replace', index=False)
-    print("🎉 [대성공] 오라클 DB 자동 업데이트 가동 성공!")
+    print("🎉 [대성공] 오라클 DB 자동 업데이트 가동 성공! (AI 심층 분석 데이터 포함)")
 except Exception as e:
     print(f"❌ 오라클 DB 적재 에러: {e}")
     sys.exit(1)
