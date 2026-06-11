@@ -19,11 +19,13 @@ jobs:
       with:
         python-version: '3.10'
 
+    # 크롤링을 위한 beautifulsoup4 와 lxml 추가
     - name: 3️⃣ 필수 라이브러리 설치
       run: |
         python -m pip install --upgrade pip
-        pip install requests pandas sqlalchemy oracledb
+        pip install requests pandas sqlalchemy oracledb beautifulsoup4 lxml
 
+    # AI 검증을 위해 SCHOOL_API_KEY 환경변수 추가
     - name: 4️⃣ 기업마당 봇 최종 실행
       env:
         ORACLE_USER: ${{ secrets.ORACLE_USER }}
@@ -32,4 +34,5 @@ jobs:
         WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD }}
         WALLET_BASE64: ${{ secrets.WALLET_BASE64 }}
         BIZINFO_API_KEY: ${{ secrets.BIZINFO_API_KEY }}
+        SCHOOL_API_KEY: ${{ secrets.SCHOOL_API_KEY }} 
       run: python final_bot.py
