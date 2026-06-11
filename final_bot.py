@@ -17,7 +17,7 @@ oracle_dsn = os.getenv("ORACLE_DSN")
 wallet_password = os.getenv("WALLET_PASSWORD")
 wallet_base64 = os.getenv("WALLET_BASE64")
 bizinfo_key = os.getenv("BIZINFO_API_KEY")
-school_api_key = os.getenv("SCHOOL_API_KEY") # 깃허브 시크릿에 SCHOOL_API_KEY 추가 필수
+school_api_key = os.getenv("SCHOOL_API_KEY") 
 
 if not all([oracle_user, oracle_password, oracle_dsn, wallet_password, wallet_base64, bizinfo_key]):
     print("❌ 에러: 깃허브 Secrets 설정 중 누락된 항목이 존재합니다.")
@@ -35,64 +35,58 @@ except Exception as e:
     print(f"❌ 지갑 파일 복원 실패: {e}")
     sys.exit(1)
 
+# =====================================================================
+# 🚀 3️⃣ 기업마당 공식 API 서버 호출 (방화벽 차단 회피 로직 적용)
+# =====================================================================
 print("3️⃣ 기업마당 공식 API 서버 호출 중...")
 url = "https://www.bizinfo.go.kr/uss/rss/bizinfoApi.do"
-params = {
-    'crtfcKey': bizinfo_key,
-    'dataType': 'json',
-    'searchCnt': '300'
-}
-
-# 🚨 중기부 방화벽 차단을 뚫기 위한 일반 브라우저 위장 헤더
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-}
+params = {'crtfcKey': bizinfo_key, 'dataType': 'json', 'searchCnt': '300'}
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
 
 max_retries = 3
+api_data = []
+
 for attempt in range(max_retries):
     try:
         response = requests.get(url, params=params, headers=headers, timeout=60)
-        print(f"📡 API 서버 응답 상태 코드: {response.status_code}")
+        print(f"📡 API 응답 코드: {response.status_code}")
+        
         if response.status_code == 200:
-            raw_text = response.text.strip()
-            print(f"🔍 원본 데이터 앞글자 샘플: {raw_text[:150]}")
-            try:
-                json_res = response.json()
-            except Exception as json_err:
-                print(f"❌ 에러: API 응답을 JSON으로 변환 실패: {json_err}")
-                sys.exit(1)
-            if isinstance(json_res, list):
-                api_data = json_res
-            elif isinstance(json_res, dict) and 'jsonArray' in json_res:
-                api_data = json_res['jsonArray']
-            elif isinstance(json_res, dict) and 'data' in json_res:
-                api_data = json_res['data']
+            json_res = response.json()
+            if isinstance(json_res, list): api_data = json_res
+            elif isinstance(json_res, dict) and 'jsonArray' in json_res: api_data = json_res['jsonArray']
+            elif isinstance(json_res, dict) and 'data' in json_res: api_data = json_res['data']
+            else: api_data = [json_res] if json_res else []
+            
+            if api_data:
+                print("✔️ 기업마당 API 통신 및 데이터 확보 성공!")
+                break
             else:
-                api_data = [json_res] if json_res else []
-            if not api_data:
-                print("⚠️ 경고: 수집된 공고 배열이 비어 있습니다.")
-                sys.exit(1)
-            biz_df = pd.DataFrame(api_data).fillna("")
-            print(f"✔️ 데이터프레임 변환 성공! 컬럼 목록: {list(biz_df.columns)}")
-            break  # ✅ 성공 시 반복 탈출
+                print("⚠️ 데이터가 비어있습니다. 재시도합니다.")
         else:
-            print(f"⚠️ API 호출 실패 (상태코드: {response.status_code}), {attempt+1}번째 재시도 중...")
+            print(f"⚠️ 통신 실패 (상태코드: {response.status_code})")
+            
     except Exception as e:
-        print(f"⚠️ 통신 중 에러 발생: {e}, {attempt+1}번째 재시도 중...")
-    time.sleep(5)
+        print(f"⚠️ 통신 에러 발생: {e}")
+        
+    if attempt < max_retries - 1:
+        print(f"⏳ 서버 보호 및 차단 회피를 위해 60초 대기 후 {attempt+2}번째 시도를 진행합니다...")
+        time.sleep(60)
 else:
-    print("❌ 최종 실패: 기업마당 서버가 응답하지 않습니다.")
+    print("❌ 최종 실패: 기업마당 서버가 응답하지 않아 종료합니다.")
     sys.exit(1)
 
+biz_df = pd.DataFrame(api_data).fillna("")
+
 # =====================================================================
-# 🚀 3.5️⃣ 원문 링크 크롤링 및 AI 심층 판별 단계
+# 🚀 3.5️⃣ 원문 링크 크롤링 및 AI 심층 판별 단계 (120초 타임아웃 적용)
 # =====================================================================
 print("3.5️⃣ 기업마당 상세 페이지 크롤링 및 AI 심층 검증 시작...")
 
 biz_df['ai_pass_yn'] = "미검증"
 biz_df['ai_summary'] = "대기중"
 
-TARGET_LIMIT = 10 # 봇 과부하 및 API 요금 폭탄을 막기 위해 최상단 신규 공고 10개만 검증
+TARGET_LIMIT = 10 
 
 for idx, row in biz_df.head(TARGET_LIMIT).iterrows():
     pblanc_url = str(row.get('pblancUrl', ''))
@@ -104,17 +98,12 @@ for idx, row in biz_df.head(TARGET_LIMIT).iterrows():
     print(f"🔍 [{idx+1}/{TARGET_LIMIT}] 원문 독해 및 AI 검증 중: {title[:15]}...")
     
     try:
-        # 1. 원문 상세 페이지 텍스트 크롤링
-        page_res = requests.get(pblanc_url, headers=headers, timeout=10)
+        page_res = requests.get(pblanc_url, headers=headers, timeout=20)
         soup = BeautifulSoup(page_res.text, 'html.parser')
-        
         for script in soup(["script", "style"]):
             script.extract()
-        
-        # 문서가 너무 길면 토큰 제한에 걸리므로 앞부분 3000자만 발췌
         core_text = soup.get_text(separator=' ', strip=True)[:3000]
         
-        # 2. 학교 Claude API 통신 세팅
         if school_api_key:
             ai_prompt = f"""
             당신은 정부지원사업 심사역입니다. 다음은 공고문 상세 원문입니다.
@@ -122,47 +111,33 @@ for idx, row in biz_df.head(TARGET_LIMIT).iterrows():
             [원문 데이터]: {core_text}
             """
             
-            # 가이드에 명시된 학교 API 엔드포인트 주소 적용
             school_api_url = "https://factchat-cloud.mindlogic.ai/v1/api/anthropic/messages"
             ai_headers = {
                 "Authorization": f"Bearer {school_api_key}",
                 "Content-Type": "application/json"
             }
-            
-            # 가이드에 명시된 Anthropic Messages 규격 적용
             ai_payload = {
                 "model": "claude-sonnet-4-5-20250929",
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": ai_prompt
-                    }
-                ]
+                "messages": [{"role": "user", "content": ai_prompt}]
             }
             
+            # 긴 문서 처리를 위해 120초 넉넉한 타임아웃 적용
             ai_res = requests.post(school_api_url, json=ai_payload, headers=ai_headers, timeout=120)
             
             if ai_res.status_code == 200:
                 result_data = ai_res.json()
+                try: ai_answer = result_data.get('content', [{}])[0].get('text', str(result_data))
+                except: ai_answer = str(result_data)
                 
-                # Anthropic API 기본 응답 구조에서 텍스트 추출
-                try:
-                    ai_answer = result_data.get('content', [{}])[0].get('text', str(result_data))
-                except:
-                    ai_answer = str(result_data)
-                
-                # O/X 판별 로직
-                if "X" in ai_answer or "불가" in ai_answer:
-                    biz_df.at[idx, 'ai_pass_yn'] = "X"
-                else:
-                    biz_df.at[idx, 'ai_pass_yn'] = "O"
+                if "X" in ai_answer or "불가" in ai_answer: biz_df.at[idx, 'ai_pass_yn'] = "X"
+                else: biz_df.at[idx, 'ai_pass_yn'] = "O"
                     
                 biz_df.at[idx, 'ai_summary'] = ai_answer[:200]
             else:
                 biz_df.at[idx, 'ai_pass_yn'] = "통신 에러"
                 biz_df.at[idx, 'ai_summary'] = f"상태코드: {ai_res.status_code}"
                 
-        time.sleep(1) # IP 차단 방지용 딜레이
+        time.sleep(2) 
         
     except Exception as e:
         print(f"❌ 크롤링/AI 에러 발생: {e}")
