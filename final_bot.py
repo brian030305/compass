@@ -48,41 +48,40 @@ headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
 
-try:
-    response = requests.get(url, params=params, headers=headers, timeout=30)
-    print(f"📡 API 서버 응답 상태 코드: {response.status_code}")
-    
-    if response.status_code == 200:
-        raw_text = response.text.strip()
-        print(f"🔍 원본 데이터 앞글자 샘플: {raw_text[:150]}")
-        
-        try:
-            json_res = response.json()
-        except Exception as json_err:
-            print(f"❌ 에러: API 응답을 JSON으로 변환 실패: {json_err}")
-            sys.exit(1)
-            
-        if isinstance(json_res, list):
-            api_data = json_res
-        elif isinstance(json_res, dict) and 'jsonArray' in json_res:
-            api_data = json_res['jsonArray']
-        elif isinstance(json_res, dict) and 'data' in json_res:
-            api_data = json_res['data']
+max_retries = 3
+for attempt in range(max_retries):
+    try:
+        response = requests.get(url, params=params, headers=headers, timeout=60)
+        print(f"📡 API 서버 응답 상태 코드: {response.status_code}")
+        if response.status_code == 200:
+            raw_text = response.text.strip()
+            print(f"🔍 원본 데이터 앞글자 샘플: {raw_text[:150]}")
+            try:
+                json_res = response.json()
+            except Exception as json_err:
+                print(f"❌ 에러: API 응답을 JSON으로 변환 실패: {json_err}")
+                sys.exit(1)
+            if isinstance(json_res, list):
+                api_data = json_res
+            elif isinstance(json_res, dict) and 'jsonArray' in json_res:
+                api_data = json_res['jsonArray']
+            elif isinstance(json_res, dict) and 'data' in json_res:
+                api_data = json_res['data']
+            else:
+                api_data = [json_res] if json_res else []
+            if not api_data:
+                print("⚠️ 경고: 수집된 공고 배열이 비어 있습니다.")
+                sys.exit(1)
+            biz_df = pd.DataFrame(api_data).fillna("")
+            print(f"✔️ 데이터프레임 변환 성공! 컬럼 목록: {list(biz_df.columns)}")
+            break  # ✅ 성공 시 반복 탈출
         else:
-            api_data = [json_res] if json_res else []
-
-        if not api_data:
-            print("⚠️ 경고: 수집된 공고 배열이 비어 있습니다.")
-            sys.exit(1)
-            
-        biz_df = pd.DataFrame(api_data).fillna("")
-        print(f"✔️ 데이터프레임 변환 성공! 컬럼 목록: {list(biz_df.columns)}")
-    else:
-        print(f"❌ API 호출 실패 (HTTP 상태 코드: {response.status_code})")
-        print(f"💡 서버 에러 내용: {response.text}")
-        sys.exit(1)
-except Exception as e:
-    print(f"❌ API 통신 실패 단계 에러: {e}")
+            print(f"⚠️ API 호출 실패 (상태코드: {response.status_code}), {attempt+1}번째 재시도 중...")
+    except Exception as e:
+        print(f"⚠️ 통신 중 에러 발생: {e}, {attempt+1}번째 재시도 중...")
+    time.sleep(5)
+else:
+    print("❌ 최종 실패: 기업마당 서버가 응답하지 않습니다.")
     sys.exit(1)
 
 # =====================================================================
