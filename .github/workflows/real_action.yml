@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
     - name: 1️⃣ 깃허브 서버로 최신 코드 다운로드 (캐시 무시)
       uses: actions/checkout@v3
