@@ -48,7 +48,7 @@ headers = {
 }
 
 try:
-    response = requests.get(url, params=params, headers=headers, timeout=30)
+    response = requests.get(url, params=params, headers=headers, timeout=90)
     print(f"📡 API 서버 응답 상태 코드: {response.status_code}")
     
     if response.status_code == 200:
