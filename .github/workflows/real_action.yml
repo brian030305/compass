@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
     - name: 1️⃣ 깃허브 서버로 최신 코드 다운로드 (캐시 무시)
       uses: actions/checkout@v3
@@ -28,7 +28,6 @@ jobs:
     # AI 검증을 위해 SCHOOL_API_KEY 환경변수 추가
     - name: 4️⃣ 기업마당 봇 최종 실행
       env:
-        PYTHONIOENCODING: utf8
         ORACLE_USER: ${{ secrets.ORACLE_USER }}
         ORACLE_PASSWORD: ${{ secrets.ORACLE_PASSWORD }}
         ORACLE_DSN: ${{ secrets.ORACLE_DSN }}
